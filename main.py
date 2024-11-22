@@ -18,9 +18,11 @@ testset = torchvision.datasets.MNIST(root='./data', train=False,
 testloader = torch.utils.data.DataLoader(testset, batch_size=1,
                                          shuffle=False, num_workers=2)
 
-classes = ('plane', 'car', 'bird', 'cat',
-           'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
+classes = ('0', '1', '2', '3',
+           '4', '5', '6', '7', '8', '9')
 
+device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+print(device)
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -78,7 +80,7 @@ def run():
             x = self.fc2(x)
 
             if flag:
-                stats[count, :30] = x[0]
+                stats[count:count+x.size()[0], :30] = x.detach().cpu()
 
             x = F.relu(x)
             x = self.fc3(x)
@@ -86,18 +88,20 @@ def run():
 
     flag = False
     net = Net()
+    net.to(device)
 
     import torch.optim as optim
 
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
 
-    for epoch in range(1):  # loop over the dataset multiple times
+    for epoch in range(2):  # loop over the dataset multiple times
 
         running_loss = 0.0
         for i, data in enumerate(trainloader, 0):
             # get the inputs; data is a list of [inputs, labels]
-            inputs, labels = data
+            inputs, labels = data[0].to(device), data[1].to(device)
+
 
             # zero the parameter gradients
             optimizer.zero_grad()
@@ -126,6 +130,7 @@ def run():
 
     net = Net()
     net.load_state_dict(torch.load(PATH, weights_only=True))
+    net.to(device)
 
     count = 0
     flag = True
@@ -135,8 +140,8 @@ def run():
     # since we're not training, we don't need to calculate the gradients for our outputs
     with torch.no_grad():
         for data in testloader:
-            images, labels = data
-            stats[count, 30] = labels[0]
+            images, labels = data[0].to(device), data[1].to(device)
+            stats[count, 30] = data[1]
             # calculate outputs by running images through the network
             outputs = net(images)
             count += 1
@@ -204,10 +209,11 @@ def cluster_train():
             x = self.fc2(x)
 
             if flag:
-                stats[count:count+x.size()[0], :30] = x.detach()
+                stats[count:count+x.size()[0], :30] = x.detach().cpu()
                 if not kmeans is None:
-                    x_clusters = kmeans.cluster_centers_[kmeans.predict(x.detach().numpy())]
-                    dists = torch.norm(x - torch.from_numpy(x_clusters), p=2, dim=1)
+                    # One could use a kmeans pytorch implementation
+                    x_clusters = kmeans.cluster_centers_[kmeans.predict(x.detach().cpu().numpy())]
+                    dists = torch.norm(x - torch.from_numpy(x_clusters).to(device), p=2, dim=1)
                     cluster_loss = torch.sum(dists) * cl_alpha * cl_rate
 
             x = F.relu(x)
@@ -215,11 +221,12 @@ def cluster_train():
             return x, cluster_loss
 
     flag = True
-    cl_alpha = 0.005
+    cl_alpha = 0.05
     cl_rate = 0
     cluster_loss = 0
     kmeans = None
     net = Net()
+    net.to(device)
 
     import torch.optim as optim
 
@@ -232,7 +239,7 @@ def cluster_train():
         running_cl = 0.0
         for i, data in enumerate(trainloader, 0):
             # get the inputs; data is a list of [inputs, labels]
-            inputs, labels = data
+            inputs, labels = data[0].to(device), data[1].to(device)
 
             # zero the parameter gradients
             optimizer.zero_grad()
@@ -254,7 +261,7 @@ def cluster_train():
                 print(f'[{epoch + 1}, {i + 1:5d}] loss: {running_loss / 2000:.3f} closs: {running_cl / 2000:.3f}')
                 count = 0
                 if cl_rate < 1:
-                    cl_rate += 0.2
+                    cl_rate += 0.16
                 to_cluster = stats[:2000 * 4, :30].numpy()
                 kmeans = MiniBatchKMeans(n_clusters=30, random_state=0, batch_size=256, max_iter = 4, n_init='auto').fit(to_cluster)
                 running_loss = 0.0
@@ -266,14 +273,11 @@ def cluster_train():
     torch.save(net.state_dict(), PATH)
     
     kmeans = None
-
-    dataiter = iter(testloader)
-    images, labels = next(dataiter)
-
     # print images
 
     net = Net()
     net.load_state_dict(torch.load(PATH, weights_only=True))
+    net.to(device)
 
     count = 0
     flag = True
@@ -283,7 +287,7 @@ def cluster_train():
     # since we're not training, we don't need to calculate the gradients for our outputs
     with torch.no_grad():
         for data in testloader:
-            images, labels = data
+            images, labels = data[0].to(device), data[1].to(device)
             stats[count, 30] = labels[0]
             # calculate outputs by running images through the network
             outputs, _ = net(images)
@@ -342,6 +346,7 @@ def test_proj(ver):
 
     net = Net(ver)
     net.load_state_dict(torch.load(PATH, weights_only=True))
+    net.to(device)
 
     count = 0
     flag = True
@@ -351,7 +356,7 @@ def test_proj(ver):
     # since we're not training, we don't need to calculate the gradients for our outputs
     with torch.no_grad():
         for data in testloader:
-            images, labels = data
+            images, labels = data[0].to(device), data[1].to(device)
             stats[count, 10] = labels[0]
             # calculate outputs by running images through the network
             outputs = net(images)
@@ -370,20 +375,20 @@ if __name__ == "__main__":
     #     cluster_train()
     #     np.save(str(i) + '.npy', stats.numpy())
     
-    # for i in range(6):
-    #     stats = np.zeros([10000, 31])
-    #     run()
-    #     np.save(str(i) + '.npy', stats)
+    for i in range(6):
+        stats = np.zeros([10000, 31])
+        run()
+        np.save(str(i) + '.npy', stats)
     
     # for i in range(6):
     #     stats = np.zeros([10000, 11])
     #     test_proj(i)
     #     np.save(str(i) + '_proj.npy', stats)
 
-    fig, axs = plt.subplots(3, 2)
-    for i in range(6):
+    fig, axs = plt.subplots(3, 5)
+    for i in range(15):
         print('running')
-        stats = np.load(str(i)+'.npy')
+        stats = np.load(str(5)+'.npy')
         colors = stats[:, 30].astype('int')
         stats = stats[:, :30]
         # U, s, Vt = np.linalg.svd(stats, full_matrices=False)
@@ -393,7 +398,7 @@ if __name__ == "__main__":
         c = [c_arr[x] for x in colors]
         x = (stats[:500, 0] - np.mean(stats[:500, 0])) / np.std(stats[:500, 0])
         y = (stats[:500, 1] - np.mean(stats[:500, 1])) / np.std(stats[:500, 1])
-        axs[i % 3, i // 3].scatter(stats[:500, 5], stats[:500, 8], c=c[:500])
+        axs[i % 3, i // 3].scatter(stats[:500, 2 * i], stats[:500, 2 * i + 1], c=c[:500])
         
         # cvecs = []
         # for j in range(10):
