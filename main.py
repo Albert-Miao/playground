@@ -4,16 +4,16 @@ import torchvision.transforms as transforms
 
 transform = transforms.Compose(
     [transforms.ToTensor(),
-     transforms.Normalize((0.5), (0.5))])
+     transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
 
-batch_size = 4
+batch_size = 32
 
-trainset = torchvision.datasets.MNIST(root='./data', train=True,
+trainset = torchvision.datasets.CIFAR10(root='./data', train=True,
                                         download=True, transform=transform)
 trainloader = torch.utils.data.DataLoader(trainset, batch_size=batch_size,
                                           shuffle=True, num_workers=2)
 
-testset = torchvision.datasets.MNIST(root='./data', train=False,
+testset = torchvision.datasets.CIFAR10(root='./data', train=False,
                                        download=True, transform=transform)
 testloader = torch.utils.data.DataLoader(testset, batch_size=1,
                                          shuffle=False, num_workers=2)
@@ -29,8 +29,31 @@ import numpy as np
 
 from sklearn.cluster import MiniBatchKMeans
 
+from scipy.spatial.distance import cdist
+from scipy.optimize import linear_sum_assignment
+
 # functions to show an image
 
+import math
+
+
+def fibonacci_sphere(samples=30):
+
+    points = []
+    phi = math.pi * (math.sqrt(5.) - 1.)  # golden angle in radians
+
+    for i in range(samples):
+        y = 1 - (i / float(samples - 1)) * 2  # y goes from 1 to -1
+        radius = math.sqrt(1 - y * y)  # radius at y
+
+        theta = phi * i  # golden angle increment
+
+        x = math.cos(theta) * radius
+        z = math.sin(theta) * radius
+
+        points.append((x, y, z))
+
+    return points
 
 def imshow(img):
     img = img / 2 + 0.5     # unnormalize
@@ -46,6 +69,8 @@ global kmeans
 global cluster_loss
 global cl_alpha
 global cl_ramp
+
+global assignment
 
 def run():
     # get some random training images
@@ -64,11 +89,11 @@ def run():
             super().__init__()
             # trng_state = torch.random.get_rng_state();
             # torch.manual_seed(3)
-            self.conv1 = nn.Conv2d(1, 6, 5)
+            self.conv1 = nn.Conv2d(3, 6, 5)
             self.pool = nn.MaxPool2d(2, 2)
-            self.conv2 = nn.Conv2d(6, 10, 5)
-            self.fc1 = nn.Linear(160, 80)
-            self.fc2 = nn.Linear(80, 30)
+            self.conv2 = nn.Conv2d(6, 16, 5)
+            self.fc1 = nn.Linear(16 * 5 * 5, 120)
+            self.fc2 = nn.Linear(120, 30)
             self.fc3 = nn.Linear(30, 10)
             # torch.random.set_rng_state(trng_state)
 
@@ -77,12 +102,11 @@ def run():
             x = self.pool(F.relu(self.conv2(x)))
             x = torch.flatten(x, 1) # flatten all dimensions except batch
             x = F.relu(self.fc1(x))
-            x = self.fc2(x)
-
+            x = F.relu(self.fc2(x))
+            
             if flag:
-                stats[count:count+x.size()[0], :30] = x.detach().cpu()
-
-            x = F.relu(x)
+                stats[count:count+x.size()[0], :30] = x.detach().clone().cpu()
+            # x = F.normalize(x)
             x = self.fc3(x)
             return x
 
@@ -95,7 +119,7 @@ def run():
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
 
-    for epoch in range(2):  # loop over the dataset multiple times
+    for epoch in range(6):  # loop over the dataset multiple times
 
         running_loss = 0.0
         for i, data in enumerate(trainloader, 0):
@@ -114,8 +138,8 @@ def run():
 
             # print statistics
             running_loss += loss.item()
-            if i % 2000 == 1999:    # print every 2000 mini-batches
-                print(f'[{epoch + 1}, {i + 1:5d}] loss: {running_loss / 2000:.3f}')
+            if i % (8000 / batch_size) == 8000 / batch_size - 1:   # print every 2000 mini-batches
+                print(f'[{epoch + 1}, {i + 1:5d}] loss: {running_loss / 8000 * batch_size:.3f}')
                 running_loss = 0.0
 
     print('Finished Training')
@@ -192,11 +216,11 @@ def cluster_train():
             super().__init__()
             # trng_state = torch.random.get_rng_state();
             # torch.manual_seed(3)
-            self.conv1 = nn.Conv2d(1, 6, 5)
+            self.conv1 = nn.Conv2d(3, 6, 5)
             self.pool = nn.MaxPool2d(2, 2)
-            self.conv2 = nn.Conv2d(6, 10, 5)
-            self.fc1 = nn.Linear(160, 80)
-            self.fc2 = nn.Linear(80, 30)
+            self.conv2 = nn.Conv2d(6, 16, 5)
+            self.fc1 = nn.Linear(16 * 5 * 5, 120)
+            self.fc2 = nn.Linear(120, 30)
             self.fc3 = nn.Linear(30, 10)
             # torch.random.set_rng_state(trng_state)
 
@@ -206,34 +230,43 @@ def cluster_train():
             x = self.pool(F.relu(self.conv2(x)))
             x = torch.flatten(x, 1) # flatten all dimensions except batch
             x = F.relu(self.fc1(x))
-            x = self.fc2(x)
+            x = F.relu(self.fc2(x))
+            # x = F.normalize(x)
 
             if flag:
-                stats[count:count+x.size()[0], :30] = x.detach().cpu()
+                stats[count:count+x.size()[0], :30] = x.detach().clone().cpu()
                 if not kmeans is None:
                     # One could use a kmeans pytorch implementation
                     x_clusters = kmeans.cluster_centers_[kmeans.predict(x.detach().cpu().numpy())]
-                    dists = torch.norm(x - torch.from_numpy(x_clusters).to(device), p=2, dim=1)
-                    cluster_loss = torch.sum(dists) * cl_alpha * cl_rate
+                    dists = torch.sum((x - torch.from_numpy(x_clusters).to(device)) ** 2 / x.size()[1], dim=1)
+                    
+                    # x_clusters = id_mat[assignment[kmeans.predict(x.detach().cpu().numpy())]]
+                    # dists = torch.sum((x - x_clusters) ** 2 / x.size()[1], dim=1)
+                    cluster_loss = torch.mean(dists) * cl_alpha * cl_rate
 
-            x = F.relu(x)
             x = self.fc3(x)
             return x, cluster_loss
 
     flag = True
-    cl_alpha = 0.05
+    cl_alpha = 1
     cl_rate = 0
     cluster_loss = 0
     kmeans = None
+    assignment = None
     net = Net()
     net.to(device)
+    
+    id_mat = torch.eye(30).to(device).to(int)
+    test = torch.tensor([((1 - (0.8) ** 2) / 29) ** (1/2), 0.8]).to(device)
+    id_mat = test[id_mat]
+    
 
     import torch.optim as optim
 
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
+    optimizer = optim.SGD(net.parameters(), lr=0.004, momentum=0.9)
 
-    for epoch in range(2):  # loop over the dataset multiple times
+    for epoch in range(6):  # loop over the dataset multiple times
         count = 0
         running_loss = 0.0
         running_cl = 0.0
@@ -257,13 +290,15 @@ def cluster_train():
 
             count += batch_size
             # print statistics
-            if i % 2000 == 1999:    # print every 2000 mini-batches
-                print(f'[{epoch + 1}, {i + 1:5d}] loss: {running_loss / 2000:.3f} closs: {running_cl / 2000:.3f}')
+            if i % (8000 / batch_size) == 8000 / batch_size - 1:    # print every 2000 mini-batches
+                print(f'[{epoch + 1}, {i + 1:5d}] loss: {running_loss / 8000 * batch_size:.3f} closs: {running_cl / 8000 * batch_size:.3f}')
                 count = 0
                 if cl_rate < 1:
                     cl_rate += 0.16
                 to_cluster = stats[:2000 * 4, :30].numpy()
                 kmeans = MiniBatchKMeans(n_clusters=30, random_state=0, batch_size=256, max_iter = 4, n_init='auto').fit(to_cluster)
+                C = cdist(kmeans.cluster_centers_, id_mat.cpu())
+                _, assignment = linear_sum_assignment(C)
                 running_loss = 0.0
                 running_cl = 0.0
 
@@ -370,15 +405,15 @@ def test_proj(ver):
 
 if __name__ == "__main__":
     
-    # for i in range(6):
-    #     stats = torch.zeros([10000, 31])
-    #     cluster_train()
-    #     np.save(str(i) + '.npy', stats.numpy())
-    
     for i in range(6):
-        stats = np.zeros([10000, 31])
-        run()
-        np.save(str(i) + '.npy', stats)
+        stats = torch.zeros([10000, 31])
+        cluster_train()
+        np.save(str(i) + '.npy', stats.numpy())
+    
+    # for i in range(6):
+    #     stats = np.zeros([10000, 31])
+    #     run()
+    #     np.save(str(i) + '.npy', stats)
     
     # for i in range(6):
     #     stats = np.zeros([10000, 11])
@@ -388,7 +423,7 @@ if __name__ == "__main__":
     fig, axs = plt.subplots(3, 5)
     for i in range(15):
         print('running')
-        stats = np.load(str(5)+'.npy')
+        stats = np.load(str(0)+'.npy')
         colors = stats[:, 30].astype('int')
         stats = stats[:, :30]
         # U, s, Vt = np.linalg.svd(stats, full_matrices=False)
