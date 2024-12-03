@@ -4,16 +4,17 @@ import torchvision.transforms as transforms
 
 transform = transforms.Compose(
     [transforms.ToTensor(),
-     transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+     transforms.Normalize((0.5), (0.5))])
+    #  transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
 
 batch_size = 32
 
-trainset = torchvision.datasets.CIFAR10(root='./data', train=True,
+trainset = torchvision.datasets.MNIST(root='./data', train=True,
                                         download=True, transform=transform)
 trainloader = torch.utils.data.DataLoader(trainset, batch_size=batch_size,
                                           shuffle=True, num_workers=2)
 
-testset = torchvision.datasets.CIFAR10(root='./data', train=False,
+testset = torchvision.datasets.MNIST(root='./data', train=False,
                                        download=True, transform=transform)
 testloader = torch.utils.data.DataLoader(testset, batch_size=1,
                                          shuffle=False, num_workers=2)
@@ -71,6 +72,8 @@ global cl_alpha
 global cl_beta
 global cl_ramp
 global id_mat
+
+global hidden_reps
 
 global assignment
 
@@ -222,10 +225,10 @@ def cluster_train():
             super().__init__()
             # trng_state = torch.random.get_rng_state();
             # torch.manual_seed(3)
-            self.conv1 = nn.Conv2d(3, 6, 5)
+            self.conv1 = nn.Conv2d(1, 6, 5)
             self.pool = nn.MaxPool2d(2, 2)
-            self.conv2 = nn.Conv2d(6, 16, 5)
-            self.fc1 = nn.Linear(16 * 5 * 5, 120)
+            self.conv2 = nn.Conv2d(6, 10, 5)
+            self.fc1 = nn.Linear(160, 120)
             
             
             self.fc2 = nn.Linear(120, 30)
@@ -235,6 +238,7 @@ def cluster_train():
 
         def forward(self, x):
             cluster_loss = 0
+            hidden_reps = 0
             x = self.pool(F.relu(self.conv1(x)))
             x = self.pool(F.relu(self.conv2(x)))
             x = torch.flatten(x, 1) # flatten all dimensions except batch
@@ -244,49 +248,51 @@ def cluster_train():
             x = self.fc2(x)
             
             # x = F.normalize(x)
-            x = self.bn(x)
+            # x = self.bn(x)
                         
             if flag:
                 stats[count:count+x.size()[0], :30] = x.detach().clone().cpu()
-                if not kmeans is None:
-                    # Encourages similar points to cluster together - simple cluster training
-                    # x_clusters = kmeans.cluster_centers_[kmeans.predict(x.detach().cpu().numpy())]
-                    # dists = torch.sum((x - torch.from_numpy(x_clusters).to(device)) ** 2 / x.size()[1], dim=1)
+                hidden_reps = x.clone()
+
+                # if not kmeans is None:
+                #     # Encourages similar points to cluster together - simple cluster training
+                #     # x_clusters = kmeans.cluster_centers_[kmeans.predict(x.detach().cpu().numpy())]
+                #     # dists = torch.sum((x - torch.from_numpy(x_clusters).to(device)) ** 2 / x.size()[1], dim=1)
                     
-                    # Exploding clusters - encourages points to move away from all clusters except their own, but also stick to own cluster
-                    center_inds = kmeans.predict(x.detach().cpu().numpy())
+                #     # Exploding clusters - encourages points to move away from all clusters except their own, but also stick to own cluster
+                #     center_inds = kmeans.predict(x.detach().cpu().numpy())
                     
-                    # (number of concepts, batch size, dimension/channels) -> (batch size, number of concepts, dimension / channels)
-                    x_repeat = x.expand(30, x.size()[0], 30).transpose(0,1)
-                    centers_repeat = centers.expand(x.size()[0], 30, 30)
+                #     # (number of concepts, batch size, dimension/channels) -> (batch size, number of concepts, dimension / channels)
+                #     x_repeat = x.expand(30, x.size()[0], 30).transpose(0,1)
+                #     centers_repeat = centers.expand(x.size()[0], 30, 30)
                     
-                    # Here we encourage points close to other centers to drift away from them based off of inverse distance. Maybe explore negative?
-                    dists = 1 / torch.norm(x_repeat - centers_repeat, dim=2)
-                    dists[dists > 5] = 5
+                #     # Here we encourage points close to other centers to drift away from them based off of inverse distance. Maybe explore negative?
+                #     dists = 1 / torch.norm(x_repeat - centers_repeat, dim=2)
+                #     dists[dists > 5] = 5
                     
-                    # On the other hand, points will move closer to their own centers based off of square root. Also multiply by number of concepts and a relative beta term
-                    for i in range(x.size()[0]):
-                        dists[i][center_inds[i]] = (1 / dists[i][center_inds[i]]) ** (1 / 2) * 30 * cl_beta
+                #     # On the other hand, points will move closer to their own centers based off of square root. Also multiply by number of concepts and a relative beta term
+                #     for i in range(x.size()[0]):
+                #         dists[i][center_inds[i]] = (1 / dists[i][center_inds[i]]) ** (1 / 2) * 30 * cl_beta
                     
-                    # Encourages clusters to move outwards - expanding cluster training 
-                    # (NEEDS REWRITING, currently pushes clusters outwards but collapses clusters at boundary)
-                    # cluster_inds = kmeans.predict(x.detach().cpu().numpy())
-                    # x_clusters = centers[cluster_inds]
-                    # dists = torch.sum((x - x_clusters) ** 2 / x.size()[1], dim=1)
+                #     # Encourages clusters to move outwards - expanding cluster training 
+                #     # (NEEDS REWRITING, currently pushes clusters outwards but collapses clusters at boundary)
+                #     # cluster_inds = kmeans.predict(x.detach().cpu().numpy())
+                #     # x_clusters = centers[cluster_inds]
+                #     # dists = torch.sum((x - x_clusters) ** 2 / x.size()[1], dim=1)
                     
-                    # Encourages clusters to move to predefined 'thin' vectors - shifting cluster training
-                    # x_clusters = id_mat[assignment[kmeans.predict(x.detach().cpu().numpy())]]
-                    # dists = torch.sum((x - x_clusters) ** 2 / x.size()[1], dim=1)
-                    cluster_loss = torch.mean(dists) * cl_alpha * cl_rate
+                #     # Encourages clusters to move to predefined 'thin' vectors - shifting cluster training
+                #     # x_clusters = id_mat[assignment[kmeans.predict(x.detach().cpu().numpy())]]
+                #     # dists = torch.sum((x - x_clusters) ** 2 / x.size()[1], dim=1)
+                #     cluster_loss = torch.mean(dists) * cl_alpha * cl_rate
                     
             
             x = F.relu(x)
             x = self.fc3(x)
-            return x, cluster_loss
+            return x, cluster_loss, hidden_reps
 
     flag = True
-    cl_alpha = 10
-    cl_beta = 0.1
+    cl_alpha = 100
+    cl_beta = 0.001
     cl_rate = 0
     cluster_loss = 0
     kmeans = None
@@ -295,6 +301,8 @@ def cluster_train():
     net.to(device)
     
     centers = None
+    
+    class_centers = torch.zeros(10, 30).to(device)
     
     # id_mat = torch.eye(30).to(device).to(int)
     # test = torch.tensor([((1 - (0.8) ** 2) / 29) ** (1/2), 0.8]).to(device)
@@ -306,6 +314,7 @@ def cluster_train():
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.SGD(net.parameters(), lr=0.004, momentum=0.9)
 
+    # torch.autograd.set_detect_anomaly(True)
     for epoch in range(3):  # loop over the dataset multiple times
         count = 0
         running_loss = 0.0
@@ -318,17 +327,39 @@ def cluster_train():
             optimizer.zero_grad()
 
             # forward + backward + optimize
-            outputs, cluster_loss = net(inputs)
+            outputs, cluster_loss, hidden_reps = net(inputs)
             loss = criterion(outputs, labels)
+            
+            # Testing class-based expanding clustering
+            stats[count:count+labels.size()[0], 30] = labels
+            if not kmeans is None:
+                x_repeat = hidden_reps.expand(10, hidden_reps.size()[0], 30).transpose(0,1)
+                centers_repeat = class_centers.expand(hidden_reps.size()[0], 10, 30)
+                
+                
+                raw_dists = torch.norm(x_repeat - centers_repeat, dim=2)
+                dists = math.e ** ((raw_dists / 4) ** 2 * -1)
+                new_dists = dists.clone()
+                new_dists[dists < 1e-20] = 1e-20
+                
+                for j in range(hidden_reps.size()[0]):
+                    new_dists[j][labels[j]] = raw_dists[j][labels[j]] ** (1/2) * 10 * cl_beta
+                
+                cluster_loss = torch.mean(new_dists) * cl_alpha * cl_rate
+                
+            
             
             running_loss += loss.item()
             if cl_rate > 0:
                 running_cl += cluster_loss
             loss += cluster_loss
+            
+            
             loss.backward()
             optimizer.step()
 
             count += batch_size
+
             # print statistics
             if i % (8000 / batch_size) == 8000 / batch_size - 1:    # print every 2000 mini-batches
                 print(f'[{epoch + 1}, {i + 1:5d}] loss: {running_loss / 8000 * batch_size:.3f} closs: {running_cl / 8000 * batch_size:.3f}')
@@ -337,8 +368,14 @@ def cluster_train():
                     cl_rate += 0.17
                 to_cluster = stats[:8000, :30].numpy()
                 kmeans = MiniBatchKMeans(n_clusters=30, random_state=0, batch_size=256, max_iter = 4, n_init='auto').fit(to_cluster)
+                
+                # Class cluster center identification
+                for j in range(10):
+                    class_centers[j] = torch.mean(stats[:8000][stats[:8000, 30] == j][:, :30], axis=0).to(device)
+                
                 # For exploding or simple clustering
-                centers = torch.from_numpy(kmeans.cluster_centers_).to(device)
+                # CHECK TO SEE IF CENTERS IS ORIENTED PROPERLY (IE (NUMBER OF CLUSTERS X DIMENSIONS) VS (DIMENSIONS X NUMBER OF CLUSTERS))
+                # centers = torch.from_numpy(kmeans.cluster_centers_).to(device)
                 
                 # expanding centers: cube rt to magnify centers
                 # centers = F.normalize(torch.from_numpy(kmeans.cluster_centers_).to(device))
@@ -369,16 +406,34 @@ def cluster_train():
     total = 0
     # since we're not training, we don't need to calculate the gradients for our outputs
     with torch.no_grad():
+        for data in trainloader:
+            images, labels = data[0].to(device), data[1].to(device)
+            # stats[count, 30] = labels[0]
+            # calculate outputs by running images through the network
+            outputs, _, _ = net(images)
+            # count += 1
+            # the class with the highest energy is what we choose as prediction
+            _, predicted = torch.max(outputs.data, 1)
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
+            if total > 10000:
+                break
+        print(f'Accuracy of the network on the 10000 train images: {100 * correct // total} %')
+        correct = 0
+        total = 0        
+            
         for data in testloader:
             images, labels = data[0].to(device), data[1].to(device)
             stats[count, 30] = labels[0]
             # calculate outputs by running images through the network
-            outputs, _ = net(images)
+            outputs, _, _ = net(images)
             count += 1
             # the class with the highest energy is what we choose as prediction
             _, predicted = torch.max(outputs.data, 1)
             total += labels.size(0)
             correct += (predicted == labels).sum().item()
+            if total > 10000:
+                break
 
     print(f'Accuracy of the network on the 10000 test images: {100 * correct // total} %')
     
@@ -451,6 +506,8 @@ def test_proj(ver):
 
     print(f'Accuracy of the network on the 10000 test images: {100 * correct // total} %')
 
+# TODO: write code to evaluate the linear seperability of images
+# TODO: implement own self generating pipeline
 if __name__ == "__main__":
     
     # for i in range(1):
@@ -476,9 +533,9 @@ if __name__ == "__main__":
         colors = stats[:, 30].astype('int')
 
         stats = stats[:, :30]
-        stats = stats[np.logical_or(colors == 0, colors == 3)]
+        stats = stats[np.logical_or(colors == 4, colors == 9)]
         
-        colors = colors[np.logical_or(colors == 0, colors == 3)]
+        colors = colors[np.logical_or(colors == 4, colors == 9)]
         
         # U, s, Vt = np.linalg.svd(stats, full_matrices=False)
         # V = Vt.T
