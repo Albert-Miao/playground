@@ -94,10 +94,10 @@ def run():
             super().__init__()
             # trng_state = torch.random.get_rng_state();
             # torch.manual_seed(3)
-            self.conv1 = nn.Conv2d(3, 6, 5)
+            self.conv1 = nn.Conv2d(1, 6, 5)
             self.pool = nn.MaxPool2d(2, 2)
-            self.conv2 = nn.Conv2d(6, 16, 5)
-            self.fc1 = nn.Linear(16*5*5, 120)
+            self.conv2 = nn.Conv2d(6, 10, 5)
+            self.fc1 = nn.Linear(160, 120)
             self.fc2 = nn.Linear(120, 30)
             self.bn = nn.BatchNorm1d(30)
             self.fc3 = nn.Linear(30, 10)
@@ -109,7 +109,7 @@ def run():
             x = torch.flatten(x, 1) # flatten all dimensions except batch
             x = F.relu(self.fc1(x))
             x = self.fc2(x)
-            x = self.bn(x)
+            # x = self.bn(x)
             if flag:
                 stats[count:count+x.size()[0], :30] = x.detach().clone().cpu()
             x = F.relu(x)
@@ -515,10 +515,10 @@ if __name__ == "__main__":
     #     cluster_train()
     #     np.save(str(i) + '.npy', stats.numpy())
     
-    # for i in range(1):
-    #     stats = np.zeros([10000, 31])
-    #     run()
-    #     np.save(str(i) + '.npy', stats)
+    for i in range(1):
+        stats = np.zeros([10000, 31])
+        run()
+        np.save(str(i) + '.npy', stats)
     
     # for i in range(6):
     #     stats = np.zeros([10000, 11])
