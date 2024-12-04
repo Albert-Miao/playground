@@ -9,6 +9,66 @@ import torch.optim as optim
 from scipy.spatial.distance import cdist
 from scipy.optimize import linear_sum_assignment
 
+
+class NaiveNet(nn.Module):
+    def __init__(self, opt):
+        super().__init__()
+        
+        self.opt = opt
+        self.stats = torch.zeros([10000, opt.hidden_rep_dim + 1])
+        self.stat_index = 0
+        
+        self.hidden_rep_dim = opt.hidden_rep_dim
+        self.batch_size = opt.batch_size
+        self.super_batch_size = opt.super_batch_size
+        
+        self.criterion = nn.CrossEntropyLoss()
+        
+        if opt.dataset == 'MNIST':
+            self.conv1 = nn.Conv2d(1, 6, 5)
+            self.pool = nn.MaxPool2d(2, 2)
+            self.conv2 = nn.Conv2d(6, 10, 5)
+            self.fc1 = nn.Linear(160, 120)
+            
+            self.fc2 = nn.Linear(120, self.hidden_rep_dim)
+            self.fc3 = nn.Linear(self.hidden_rep_dim, 10)
+            
+            if opt.batch_norm:
+                self.bn = nn.BatchNorm1d(self.hidden_rep_dim)
+            
+        elif opt.dataset == 'CIFAR10':
+            self.conv1 = nn.Conv2d(3, 6, 5)
+            self.pool = nn.MaxPool2d(2, 2)
+            self.conv2 = nn.Conv2d(6, 16, 5)
+            self.fc1 = nn.Linear(16*5*5, 120)
+            
+            self.fc2 = nn.Linear(120, self.hidden_rep_dim)
+            self.fc3 = nn.Linear(self.hidden_rep_dim, 10)
+            
+            if opt.batch_norm:
+                self.bn = nn.BatchNorm1d(self.hidden_rep_dim)
+                
+        self.optimizer = optim.SGD(self.parameters(), lr=opt.lr, momentum=opt.momentum)
+        
+    def forward(self, x):
+        hidden_reps = 0
+        cluster_loss = 0
+        
+        x = self.pool(F.relu(self.conv1(x)))
+        x = self.pool(F.relu(self.conv2(x)))
+        x = torch.flatten(x, 1)
+        x = F.relu(self.fc1(x))
+        x = self.fc2(x)
+        
+        if self.opt.batch_norm:
+            x = self.bn(x)
+            
+        x = F.relu(x)
+        x = self.fc3(x)
+    
+        return x, cluster_loss, hidden_reps
+    
+
 class ClusterNet(nn.Module):
     def __init__(self, opt):
         super().__init__()

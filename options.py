@@ -4,6 +4,8 @@ class PlaygroundOptions:
     def __init__(self):
         self.parser = argparse.ArgumentParser(description='options')
         
+        self.parser.add_argument("--gpu",
+                                 default=True)
         self.parser.add_argument("--dataset",
                                  default="MNIST",
                                  help="supports CIFAR10 and MNIST currently")
