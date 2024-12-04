@@ -1,29 +1,6 @@
 import torch
-import torchvision
-import torchvision.transforms as transforms
-
-transform = transforms.Compose(
-    [transforms.ToTensor(),
-     transforms.Normalize((0.5), (0.5))])
-    #  transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
-
-batch_size = 32
-
-trainset = torchvision.datasets.MNIST(root='./data', train=True,
-                                        download=True, transform=transform)
-trainloader = torch.utils.data.DataLoader(trainset, batch_size=batch_size,
-                                          shuffle=True, num_workers=2)
-
-testset = torchvision.datasets.MNIST(root='./data', train=False,
-                                       download=True, transform=transform)
-testloader = torch.utils.data.DataLoader(testset, batch_size=1,
-                                         shuffle=False, num_workers=2)
-
-classes = ('0', '1', '2', '3',
-           '4', '5', '6', '7', '8', '9')
-
-device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-print(device)
+import torch.nn as nn  
+import torch.nn.functional as F
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -33,34 +10,10 @@ from sklearn.cluster import MiniBatchKMeans
 from scipy.spatial.distance import cdist
 from scipy.optimize import linear_sum_assignment
 
-# functions to show an image
-
 import math
 
-
-def fibonacci_sphere(samples=30):
-
-    points = []
-    phi = math.pi * (math.sqrt(5.) - 1.)  # golden angle in radians
-
-    for i in range(samples):
-        y = 1 - (i / float(samples - 1)) * 2  # y goes from 1 to -1
-        radius = math.sqrt(1 - y * y)  # radius at y
-
-        theta = phi * i  # golden angle increment
-
-        x = math.cos(theta) * radius
-        z = math.sin(theta) * radius
-
-        points.append((x, y, z))
-
-    return points
-
-def imshow(img):
-    img = img / 2 + 0.5     # unnormalize
-    npimg = img.numpy()
-    plt.imshow(np.transpose(npimg, (1, 2, 0)))
-    plt.show()
+from options import PlaygroundOptions
+from datasets import generate_data_loaders
 
 
 global stats
@@ -84,10 +37,9 @@ def run():
 
     # show images
     # print labels
-    print(' '.join(f'{classes[labels[j]]:5s}' for j in range(batch_size)))
+    # print(' '.join(f'{classes[labels[j]]:5s}' for j in range(batch_size)))
 
-    import torch.nn as nn
-    import torch.nn.functional as F
+
 
     class Net(nn.Module):
         def __init__(self):
@@ -209,17 +161,6 @@ def run():
     
     
 def cluster_train():
-    # get some random training images
-    dataiter = iter(trainloader)
-    images, labels = next(dataiter)
-
-    # show images
-    # print labels
-    print(' '.join(f'{classes[labels[j]]:5s}' for j in range(batch_size)))
-
-    import torch.nn as nn
-    import torch.nn.functional as F
-
     class Net(nn.Module):
         def __init__(self):
             super().__init__()
@@ -505,6 +446,15 @@ def test_proj(ver):
             correct += (predicted == labels).sum().item()
 
     print(f'Accuracy of the network on the 10000 test images: {100 * correct // total} %')
+
+def main():
+    options = PlaygroundOptions()
+    opt = options.parse()
+    torch.cuda.set_device(opt.gpu)
+    
+    trainloader, testloader = generate_data_loaders(opt)
+    
+    
 
 # TODO: write code to evaluate the linear seperability of images
 # TODO: implement own self generating pipeline
