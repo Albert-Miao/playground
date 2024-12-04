@@ -35,5 +35,7 @@ def main():
 
 # TODO: write code to evaluate the linear seperability of images
 # TODO: implement own self generating pipeline
+# TODO: test clusternet stuffs
+# TODO: comment thoroughly
 if __name__ == "__main__":
     main()
