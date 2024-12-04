@@ -1,8 +1,13 @@
+import math
+from sklearn.cluster import MiniBatchKMeans
 import torch
 import torch.nn as nn  
 import torch.nn.functional as F
 
 import torch.optim as optim
+
+from scipy.spatial.distance import cdist
+from scipy.optimize import linear_sum_assignment
 
 class ClusterNet(nn.Module):
     def __init__(self, opt):
@@ -10,7 +15,12 @@ class ClusterNet(nn.Module):
         
         self.opt = opt
         self.stats = torch.zeros([10000, opt.hidden_rep_dim + 1])
-        self.index = 0
+        self.stat_index = 0
+        
+        self.hidden_rep_dim = opt.hidden_rep_dim
+        self.batch_size = opt.batch_size
+        self.super_batch_size = opt.super_batch_size
+        self.num_clusters = opt.num_clusters
         
         self.kmeans = None
         self.centers = None
@@ -20,7 +30,7 @@ class ClusterNet(nn.Module):
         self.id_mat = None
         if self.opt.model_type == 'shiftingCluster':
             self.id_mat = torch.eye(30).cuda().to(int)
-            test = torch.tensor([((1 - (0.8) ** 2) / opt.hidden_rep_dim) ** (1/2), 0.8]).cuda
+            test = torch.tensor([((1 - (0.8) ** 2) / self.hidden_rep_dim) ** (1/2), 0.8]).cuda
             id_mat = test[id_mat]
         
         self.cl_alpha = opt.cl_alpha
@@ -36,11 +46,11 @@ class ClusterNet(nn.Module):
             self.conv2 = nn.Conv2d(6, 10, 5)
             self.fc1 = nn.Linear(160, 120)
             
-            self.fc2 = nn.Linear(120, opt.hidden_rep_dim)
-            self.fc3 = nn.Linear(opt.hidden_rep_dim, 10)
+            self.fc2 = nn.Linear(120, self.hidden_rep_dim)
+            self.fc3 = nn.Linear(self.hidden_rep_dim, 10)
             
             if opt.batch_norm:
-                self.bn = nn.BatchNorm1d(opt.hidden_rep_dim)
+                self.bn = nn.BatchNorm1d(self.hidden_rep_dim)
             
         elif opt.dataset == 'CIFAR10':
             self.conv1 = nn.Conv2d(3, 6, 5)
@@ -48,11 +58,11 @@ class ClusterNet(nn.Module):
             self.conv2 = nn.Conv2d(6, 16, 5)
             self.fc1 = nn.Linear(16*5*5, 120)
             
-            self.fc2 = nn.Linear(120, opt.hidden_rep_dim)
-            self.fc3 = nn.Linear(opt.hidden_rep_dim, 10)
+            self.fc2 = nn.Linear(120, self.hidden_rep_dim)
+            self.fc3 = nn.Linear(self.hidden_rep_dim, 10)
             
             if opt.batch_norm:
-                self.bn = nn.BatchNorm1d(opt.hidden_rep_dim)
+                self.bn = nn.BatchNorm1d(self.hidden_rep_dim)
                 
         self.optimizer = optim.SGD(self.parameters(), lr=opt.lr, momentum=opt.momentum)
 
@@ -70,7 +80,7 @@ class ClusterNet(nn.Module):
         if self.opt.batch_norm:
             x = self.bn(x)
             
-        self.stats[self.index:self.index+self.opt.batch_size, :self.opt.hidden_rep_dim] = x.detach().clone().cpu()
+        self.stats[self.stat_index:self.stat_index+self.batch_size, :self.hidden_rep_dim] = x.detach().clone().cpu()
         hidden_reps = x
         
         if not self.kmeans is None:
@@ -111,8 +121,52 @@ class ClusterNet(nn.Module):
                 # Encourages clusters to move to predefined 'thin' vectors - shifting cluster training
                 x_clusters = self.id_mat[self.assignment[self.kmeans.predict(x.detach().cpu().numpy())]]
                 dists = torch.sum((x - x_clusters) ** 2 / x.size()[1], dim=1)
+                
+                cluster_loss = torch.mean(dists) * self.cl_alpha * self.cl_rate
             
         x = F.relu(x)
         x = self.fc3(x)
     
         return x, cluster_loss, hidden_reps
+    
+    
+    def classExplodeClusterLoss(self, hidden_reps, labels):
+        x_repeat = hidden_reps.expand(hidden_reps.size()[1], hidden_reps.size()[0], 30).transpose(0,1)
+        centers_repeat = self.centers.expand(hidden_reps.size()[0], hidden_reps.size()[1], 30)
+        
+        raw_dists = torch.norm(x_repeat - centers_repeat, dim=2)
+        dists = math.e ** ((raw_dists / 4) ** 2 * -1)
+        new_dists = dists.clone()
+        new_dists[dists < 1e-20] = 1e-20
+        
+        # TODO: Add option to affect formula clustering loss uses (for both cluster and explosion)
+        for j in range(hidden_reps.size()[0]):
+            new_dists[j][labels[j]] = raw_dists[j][labels[j]] ** (1/2) * hidden_reps.size()[1] * self.cl_beta
+        
+        cluster_loss = torch.mean(new_dists) * self.cl_alpha * self.cl_rate
+        
+        cluster_loss = torch.mean(dists) * self.cl_alpha * self.cl_rate
+        return cluster_loss
+    
+    
+    def updateCenters(self):
+        if self.cl_rate < 1:
+            self.cl_rate += self.cl_rate_speed
+        
+        num_inps = self.batch_size * self.super_batch_size
+        to_cluster = self.stats[:num_inps, :self.hidden_rep_dim].numpy()
+        kmeans = MiniBatchKMeans(n_clusters=self.num_clusters, random_state=0, batch_size=256, max_iter = 4, n_init='auto').fit(to_cluster)
+        if self.opt.model_type == "classCluster":
+            self.centers = torch.zeros(10, 30).cuda()
+            for j in range(10):
+                    self.centers[j] = torch.mean(self.stats[:num_inps][self.stats[:num_inps, self.hidden_rep_dim] == j][:, :self.hidden_rep_dim], axis=0).cuda()
+                    
+        if self.opt.model_type == "simpleCluster" or self.opt.model_type == "explodingCluster":
+            self.centers = torch.from_numpy(kmeans.cluster_centers_).cuda()
+            
+        if self.opt.model_type == "expandingCluster":
+            self.centers = F.normalize(torch.from_numpy(kmeans.cluster_centers_).cuda())
+            
+        if self.opt.model_type == "shiftingCluster":
+            C = cdist(kmeans.cluster_centers_, self.id_mat.cpu())
+            _, self.assignment = linear_sum_assignment(C)

@@ -13,12 +13,14 @@ class PlaygroundOptions:
                                  default=0.004)
         self.parser.add_argument("--momentum",
                                  default=0.9)
+        self.parser.add_argument("--num_epochs")
         
+        # TODO: Add more helpful descriptions of the various clustering algorithms
         self.parser.add_argument("--model_type",
                                  default="control",
                                  help="""
                                          Currently testing control, simpleCluster, 
-                                         explodingCluster, expandingCluster, shiftingCluster
+                                         explodingCluster, expandingCluster, shiftingCluster, classCluster
                                       """)
         self.parser.add_argument("--batch_norm",
                                  default=True)
@@ -39,6 +41,9 @@ class PlaygroundOptions:
         self.parser.add_argument("--super_batch_size",
                                  default=250,
                                  help="Number of batches until centers are recalculated")
+        self.parser.add_argument("--num_clusters",
+                                 default=30,
+                                 help='Number of clusters for kmeans clustering methods')
         
         
         

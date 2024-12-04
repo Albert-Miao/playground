@@ -7,14 +7,13 @@ import numpy as np
 
 from sklearn.cluster import MiniBatchKMeans
 
-from scipy.spatial.distance import cdist
-from scipy.optimize import linear_sum_assignment
+
 
 import math
 
 from options import PlaygroundOptions
 from datasets import generate_data_loaders
-
+from models import ClusterNet
 
 global stats
 global flag
@@ -161,101 +160,12 @@ def run():
     
     
 def cluster_train():
-    class Net(nn.Module):
-        def __init__(self):
-            super().__init__()
-            # trng_state = torch.random.get_rng_state();
-            # torch.manual_seed(3)
-            self.conv1 = nn.Conv2d(1, 6, 5)
-            self.pool = nn.MaxPool2d(2, 2)
-            self.conv2 = nn.Conv2d(6, 10, 5)
-            self.fc1 = nn.Linear(160, 120)
-            
-            
-            self.fc2 = nn.Linear(120, 30)
-            self.bn = nn.BatchNorm1d(30)
-            self.fc3 = nn.Linear(30, 10)
-            # torch.random.set_rng_state(trng_state)
 
-        def forward(self, x):
-            cluster_loss = 0
-            hidden_reps = 0
-            x = self.pool(F.relu(self.conv1(x)))
-            x = self.pool(F.relu(self.conv2(x)))
-            x = torch.flatten(x, 1) # flatten all dimensions except batch
-            x = F.relu(self.fc1(x))
-            
-            
-            x = self.fc2(x)
-            
-            # x = F.normalize(x)
-            # x = self.bn(x)
-                        
-            if flag:
-                stats[count:count+x.size()[0], :30] = x.detach().clone().cpu()
-                hidden_reps = x.clone()
-
-                # if not kmeans is None:
-                #     # Encourages similar points to cluster together - simple cluster training
-                #     # x_clusters = kmeans.cluster_centers_[kmeans.predict(x.detach().cpu().numpy())]
-                #     # dists = torch.sum((x - torch.from_numpy(x_clusters).to(device)) ** 2 / x.size()[1], dim=1)
-                    
-                #     # Exploding clusters - encourages points to move away from all clusters except their own, but also stick to own cluster
-                #     center_inds = kmeans.predict(x.detach().cpu().numpy())
-                    
-                #     # (number of concepts, batch size, dimension/channels) -> (batch size, number of concepts, dimension / channels)
-                #     x_repeat = x.expand(30, x.size()[0], 30).transpose(0,1)
-                #     centers_repeat = centers.expand(x.size()[0], 30, 30)
-                    
-                #     # Here we encourage points close to other centers to drift away from them based off of inverse distance. Maybe explore negative?
-                #     dists = 1 / torch.norm(x_repeat - centers_repeat, dim=2)
-                #     dists[dists > 5] = 5
-                    
-                #     # On the other hand, points will move closer to their own centers based off of square root. Also multiply by number of concepts and a relative beta term
-                #     for i in range(x.size()[0]):
-                #         dists[i][center_inds[i]] = (1 / dists[i][center_inds[i]]) ** (1 / 2) * 30 * cl_beta
-                    
-                #     # Encourages clusters to move outwards - expanding cluster training 
-                #     # (NEEDS REWRITING, currently pushes clusters outwards but collapses clusters at boundary)
-                #     # cluster_inds = kmeans.predict(x.detach().cpu().numpy())
-                #     # x_clusters = centers[cluster_inds]
-                #     # dists = torch.sum((x - x_clusters) ** 2 / x.size()[1], dim=1)
-                    
-                #     # Encourages clusters to move to predefined 'thin' vectors - shifting cluster training
-                #     # x_clusters = id_mat[assignment[kmeans.predict(x.detach().cpu().numpy())]]
-                #     # dists = torch.sum((x - x_clusters) ** 2 / x.size()[1], dim=1)
-                #     cluster_loss = torch.mean(dists) * cl_alpha * cl_rate
-                    
-            
-            x = F.relu(x)
-            x = self.fc3(x)
-            return x, cluster_loss, hidden_reps
-
-    flag = True
-    cl_alpha = 100
-    cl_beta = 0.001
-    cl_rate = 0
-    cluster_loss = 0
-    kmeans = None
-    assignment = None
     net = Net()
     net.to(device)
-    
-    centers = None
-    
+
     class_centers = torch.zeros(10, 30).to(device)
-    
-    # id_mat = torch.eye(30).to(device).to(int)
-    # test = torch.tensor([((1 - (0.8) ** 2) / 29) ** (1/2), 0.8]).to(device)
-    # id_mat = test[id_mat]
-    
 
-    import torch.optim as optim
-
-    criterion = nn.CrossEntropyLoss()
-    optimizer = optim.SGD(net.parameters(), lr=0.004, momentum=0.9)
-
-    # torch.autograd.set_detect_anomaly(True)
     for epoch in range(3):  # loop over the dataset multiple times
         count = 0
         running_loss = 0.0
@@ -271,7 +181,7 @@ def cluster_train():
             outputs, cluster_loss, hidden_reps = net(inputs)
             loss = criterion(outputs, labels)
             
-            # Testing class-based expanding clustering
+            # Testing class-based exploding clustering
             stats[count:count+labels.size()[0], 30] = labels
             if not kmeans is None:
                 x_repeat = hidden_reps.expand(10, hidden_reps.size()[0], 30).transpose(0,1)
@@ -453,6 +363,57 @@ def main():
     torch.cuda.set_device(opt.gpu)
     
     trainloader, testloader = generate_data_loaders(opt)
+    net = None
+    # TODO: implement naivenet
+    if opt.model_type == "control":
+        net = NaiveNet(opt)
+    else:
+        net = ClusterNet(opt)
+    
+    
+    for epoch in range(opt.num_epochs):
+        hidden_reps = None
+        cluster_loss = 0
+        running_loss = 0.0
+        running_cl = 0.0
+        
+        for i, data in enumerate(trainloader, 0):
+            inputs, labels = data[0].cuda(0), data[1].cuda()
+            if opt.model_type != "control":
+                net.stats[net.stat_index:net.stat_index+opt.batch_size, opt.hidden_rep_dim] = labels
+
+            # zero the parameter gradients
+            net.optimizer.zero_grad()
+            
+            outputs, cluster_loss, hidden_reps = net(inputs)
+            loss = net.criterion(outputs, labels)
+            
+            if opt.model_type == 'exploding':
+                cluster_loss = net.classExplodeClusterLoss(hidden_reps, labels)
+            
+            running_loss += loss.item()
+            running_cl += cluster_loss
+            loss += cluster_loss
+            
+            loss.backward()
+            net.optimizer.step()
+            
+            net.stat_index += opt.batch_size
+            
+            if i % opt.super_batch_size == opt.super_batch_size - 1:
+                print(f'[{epoch + 1}, {i + 1:5d}] loss: {running_loss / opt.super_batch_size:.3f} 
+                      closs: {running_cl / opt.super_batch_size:.3f}')
+                
+                running_loss = 0.0
+                running_cl = 0.0
+                
+                if opt.model_type != "control":
+                    net.stat_index = 0
+                    net.updateCenters()
+                
+                
+            
+            
     
     
 
