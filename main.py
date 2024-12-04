@@ -7,74 +7,12 @@ import numpy as np
 
 from sklearn.cluster import MiniBatchKMeans
 
-
-
 import math
 
 from options import PlaygroundOptions
 from datasets import generate_data_loaders
 from models import ClusterNet, NaiveNet
-    
-def test_proj(ver):
 
-    import torch.nn as nn
-    import torch.nn.functional as F
-
-    class Net(nn.Module):
-        def __init__(self, ver):
-            super().__init__()
-            # trng_state = torch.random.get_rng_state();
-            # torch.manual_seed(3)
-            self.conv1 = nn.Conv2d(1, 6, 5)
-            self.pool = nn.MaxPool2d(2, 2)
-            self.conv2 = nn.Conv2d(6, 10, 5)
-            self.fc1 = nn.Linear(160, 80)
-            self.fc2 = nn.Linear(80, 30)
-            self.fc3 = nn.Linear(30, 10)
-            # torch.random.set_rng_state(trng_state)
-            
-            self.cvecs = torch.from_numpy(np.load(str(ver) + '_cvecs.npy')).type(torch.FloatTensor)
-
-        def forward(self, x):
-            x = self.pool(F.relu(self.conv1(x)))
-            x = self.pool(F.relu(self.conv2(x)))
-            x = torch.flatten(x, 1) # flatten all dimensions except batch
-            x = F.relu(self.fc1(x))
-            x = F.relu(self.fc2(x))
-            
-            x = x @ self.cvecs.T
-
-            if flag:
-                stats[count, :10] = x[0]
-
-            x = self.fc3(x)
-            return x
-
-    PATH = './MNIST.pth'
-
-    net = Net(ver)
-    net.load_state_dict(torch.load(PATH, weights_only=True))
-    net.cuda()
-
-    count = 0
-    flag = True
-    
-    correct = 0
-    total = 0
-    # since we're not training, we don't need to calculate the gradients for our outputs
-    with torch.no_grad():
-        for data in testloader:
-            images, labels = data[0].to(device), data[1].to(device)
-            stats[count, 10] = labels[0]
-            # calculate outputs by running images through the network
-            outputs = net(images)
-            count += 1
-            # the class with the highest energy is what we choose as prediction
-            _, predicted = torch.max(outputs.data, 1)
-            total += labels.size(0)
-            correct += (predicted == labels).sum().item()
-
-    print(f'Accuracy of the network on the 10000 test images: {100 * correct // total} %')
 
 def main():
     options = PlaygroundOptions()
