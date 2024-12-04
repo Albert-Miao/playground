@@ -2,8 +2,12 @@ import torch
 import torch.nn as nn  
 import torch.nn.functional as F
 
+import torch.optim as optim
+
 class ClusterNet(nn.Module):
     def __init__(self, opt):
+        super().__init__()
+        
         self.opt = opt
         self.stats = torch.zeros([10000, opt.hidden_rep_dim + 1])
         self.index = 0
@@ -12,12 +16,19 @@ class ClusterNet(nn.Module):
         self.centers = None
         
         self.assignment = None
+        
         self.id_mat = None
+        if self.opt.model_type == 'shiftingCluster':
+            self.id_mat = torch.eye(30).cuda().to(int)
+            test = torch.tensor([((1 - (0.8) ** 2) / opt.hidden_rep_dim) ** (1/2), 0.8]).cuda
+            id_mat = test[id_mat]
         
         self.cl_alpha = opt.cl_alpha
         self.cl_beta = opt.cl_beta
         self.cl_rate = opt.initial_cl_rate
         self.cl_rate_speed = opt.cl_rate_speed
+        
+        self.criterion = nn.CrossEntropyLoss()
         
         if opt.dataset == 'MNIST':
             self.conv1 = nn.Conv2d(1, 6, 5)
@@ -42,6 +53,9 @@ class ClusterNet(nn.Module):
             
             if opt.batch_norm:
                 self.bn = nn.BatchNorm1d(opt.hidden_rep_dim)
+                
+        self.optimizer = optim.SGD(self.parameters(), lr=opt.lr, momentum=opt.momentum)
+
                 
     def forward(self, x):
         hidden_reps = 0

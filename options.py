@@ -9,6 +9,10 @@ class PlaygroundOptions:
                                  help="supports CIFAR10 and MNIST currently")
         self.parser.add_argument("--batch_size",
                                  default=32)
+        self.parser.add_argument("--lr",
+                                 default=0.004)
+        self.parser.add_argument("--momentum",
+                                 default=0.9)
         
         self.parser.add_argument("--model_type",
                                  default="control",
