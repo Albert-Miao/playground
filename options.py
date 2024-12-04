@@ -4,6 +4,11 @@ class PlaygroundOptions:
     def __init__(self):
         self.parser = argparse.ArgumentParser(description='options')
         
+        self.parser.add_argument("--train",
+                                 default=True)
+        self.parser.add_argument("--visualize_hidden_reps",
+                                 default=True)
+        
         self.parser.add_argument("--gpu",
                                  default=True)
         self.parser.add_argument("--dataset",
@@ -46,6 +51,10 @@ class PlaygroundOptions:
         self.parser.add_argument("--num_clusters",
                                  default=30,
                                  help='Number of clusters for kmeans clustering methods')
+        
+        self.parser.add_argument("--stats_fn",
+                                 default='0',
+                                 help='Filepath to save stats')
         
         
         

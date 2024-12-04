@@ -1,4 +1,4 @@
-
+import torch
 
 def trainNet(trainloader, net, opt):
     for epoch in range(opt.num_epochs):
@@ -41,5 +41,46 @@ def trainNet(trainloader, net, opt):
                     net.stat_index = 0
                     net.updateCenters()
                     
+    # TODO: Improve model saving process - dates, parameters, performance, final image, etc
+    PATH = './MNIST.pth'
+    torch.save(net.state_dict(), PATH)
+                    
     return net
 
+
+def evalNet(trainloader, testloader, net, opt):
+    net.eval()
+    net.stat_index = 0
+    correct = 0
+    total = 0
+    # since we're not training, we don't need to calculate the gradients for our outputs
+    with torch.no_grad():
+        for data in trainloader:
+            images, labels = data[0].cuda(), data[1].cuda()
+            # calculate outputs by running images through the network
+            outputs, _, _ = net(images)
+
+            # the class with the highest energy is what we choose as prediction
+            _, predicted = torch.max(outputs.data, 1)
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
+            if total > 10000:
+                break
+        print(f'Accuracy of the network on the first 10000 train images: {100 * correct // total} %')
+        
+        correct = 0
+        total = 0            
+        for data in testloader:
+            images, labels = data[0].cuda(), data[1].cuda()
+            net.stats[net.stat_index, 30] = labels[0]
+            # calculate outputs by running images through the network
+            outputs, _, _ = net(images)
+            net.stat_index += 1
+            # the class with the highest energy is what we choose as prediction
+            _, predicted = torch.max(outputs.data, 1)
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
+            if total > 10000:
+                break
+
+        print(f'Accuracy of the network on the 10000 test images: {100 * correct // total} %')

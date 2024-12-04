@@ -258,3 +258,11 @@ class ProjNet(nn.Module):
 
         x = self.fc3(x)
         return x
+    
+    # Where stats is the hidden reps of another trained net 
+    # cvecs = []
+    # for j in range(10):
+    #     cvec = np.mean(stats[colors == j], axis=0)
+    #     cvecs.append(cvec / np.linalg.norm(cvec))
+        
+    # np.save(str(i) + '_cvecs.npy', np.array(cvecs))
