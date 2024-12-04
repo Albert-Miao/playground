@@ -160,94 +160,6 @@ def run():
     
     
 def cluster_train():
-
-    net = Net()
-    net.to(device)
-
-    class_centers = torch.zeros(10, 30).to(device)
-
-    for epoch in range(3):  # loop over the dataset multiple times
-        count = 0
-        running_loss = 0.0
-        running_cl = 0.0
-        for i, data in enumerate(trainloader, 0):
-            # get the inputs; data is a list of [inputs, labels]
-            inputs, labels = data[0].to(device), data[1].to(device)
-
-            # zero the parameter gradients
-            optimizer.zero_grad()
-
-            # forward + backward + optimize
-            outputs, cluster_loss, hidden_reps = net(inputs)
-            loss = criterion(outputs, labels)
-            
-            # Testing class-based exploding clustering
-            stats[count:count+labels.size()[0], 30] = labels
-            if not kmeans is None:
-                x_repeat = hidden_reps.expand(10, hidden_reps.size()[0], 30).transpose(0,1)
-                centers_repeat = class_centers.expand(hidden_reps.size()[0], 10, 30)
-                
-                
-                raw_dists = torch.norm(x_repeat - centers_repeat, dim=2)
-                dists = math.e ** ((raw_dists / 4) ** 2 * -1)
-                new_dists = dists.clone()
-                new_dists[dists < 1e-20] = 1e-20
-                
-                for j in range(hidden_reps.size()[0]):
-                    new_dists[j][labels[j]] = raw_dists[j][labels[j]] ** (1/2) * 10 * cl_beta
-                
-                cluster_loss = torch.mean(new_dists) * cl_alpha * cl_rate
-                
-            
-            
-            running_loss += loss.item()
-            if cl_rate > 0:
-                running_cl += cluster_loss
-            loss += cluster_loss
-            
-            
-            loss.backward()
-            optimizer.step()
-
-            count += batch_size
-
-            # print statistics
-            if i % (8000 / batch_size) == 8000 / batch_size - 1:    # print every 2000 mini-batches
-                print(f'[{epoch + 1}, {i + 1:5d}] loss: {running_loss / 8000 * batch_size:.3f} closs: {running_cl / 8000 * batch_size:.3f}')
-                count = 0
-                if cl_rate < 1:
-                    cl_rate += 0.17
-                to_cluster = stats[:8000, :30].numpy()
-                kmeans = MiniBatchKMeans(n_clusters=30, random_state=0, batch_size=256, max_iter = 4, n_init='auto').fit(to_cluster)
-                
-                # Class cluster center identification
-                for j in range(10):
-                    class_centers[j] = torch.mean(stats[:8000][stats[:8000, 30] == j][:, :30], axis=0).to(device)
-                
-                # For exploding or simple clustering
-                # CHECK TO SEE IF CENTERS IS ORIENTED PROPERLY (IE (NUMBER OF CLUSTERS X DIMENSIONS) VS (DIMENSIONS X NUMBER OF CLUSTERS))
-                # centers = torch.from_numpy(kmeans.cluster_centers_).to(device)
-                
-                # expanding centers: cube rt to magnify centers
-                # centers = F.normalize(torch.from_numpy(kmeans.cluster_centers_).to(device))
-                
-                # Or shifting centers
-                # C = cdist(kmeans.cluster_centers_, id_mat.cpu())
-                # _, assignment = linear_sum_assignment(C)
-                running_loss = 0.0
-                running_cl = 0.0
-
-    print('Finished Training')
-
-    PATH = './MNIST.pth'
-    torch.save(net.state_dict(), PATH)
-    
-    kmeans = None
-    # print images
-
-    net = Net()
-    net.load_state_dict(torch.load(PATH, weights_only=True))
-    net.to(device)
     net.eval()
 
     count = 0
@@ -388,7 +300,7 @@ def main():
             outputs, cluster_loss, hidden_reps = net(inputs)
             loss = net.criterion(outputs, labels)
             
-            if opt.model_type == 'exploding':
+            if opt.model_type == 'explodingCluster':
                 cluster_loss = net.classExplodeClusterLoss(hidden_reps, labels)
             
             running_loss += loss.item()
@@ -410,11 +322,14 @@ def main():
                 if opt.model_type != "control":
                     net.stat_index = 0
                     net.updateCenters()
-                
-                
-            
-            
+                    
+    print('Finished Training')
     
+    # TODO: Improve model saving process - dates, parameters, performance, final image, etc
+    PATH = './MNIST.pth'
+    torch.save(net.state_dict(), PATH)
+    
+    # TODO: Eval code
     
 
 # TODO: write code to evaluate the linear seperability of images
