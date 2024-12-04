@@ -1,5 +1,7 @@
 import math
 from sklearn.cluster import MiniBatchKMeans
+import numpy as np
+
 import torch
 import torch.nn as nn  
 import torch.nn.functional as F
@@ -62,7 +64,9 @@ class NaiveNet(nn.Module):
         
         if self.opt.batch_norm:
             x = self.bn(x)
-            
+        
+        self.stats[self.stat_index:self.stat_index+x.size()[0], :self.hidden_rep_dim] = x.detach().clone().cpu()
+
         x = F.relu(x)
         x = self.fc3(x)
     
@@ -140,7 +144,7 @@ class ClusterNet(nn.Module):
         if self.opt.batch_norm:
             x = self.bn(x)
             
-        self.stats[self.stat_index:self.stat_index+self.batch_size, :self.hidden_rep_dim] = x.detach().clone().cpu()
+        self.stats[self.stat_index:self.stat_index+x.size()[0], :self.hidden_rep_dim] = x.detach().clone().cpu()
         hidden_reps = x
         
         if not self.kmeans is None:

@@ -6,6 +6,7 @@ def trainNet(trainloader, net, opt):
         cluster_loss = 0
         running_loss = 0.0
         running_cl = 0.0
+        net.stat_index = 0
         
         for i, data in enumerate(trainloader, 0):
             inputs, labels = data[0].cuda(0), data[1].cuda()
@@ -31,14 +32,14 @@ def trainNet(trainloader, net, opt):
             net.stat_index += opt.batch_size
             
             if i % opt.super_batch_size == opt.super_batch_size - 1:
-                print(f'[{epoch + 1}, {i + 1:5d}] loss: {running_loss / opt.super_batch_size:.3f} 
-                      closs: {running_cl / opt.super_batch_size:.3f}')
+                print(f'[{epoch + 1}, {i + 1:5d}] loss: {running_loss / opt.super_batch_size:.3f} ' + 
+                      f'closs: {running_cl / opt.super_batch_size:.3f}')
                 
                 running_loss = 0.0
                 running_cl = 0.0
+                net.stat_index = 0
                 
                 if opt.model_type != "control":
-                    net.stat_index = 0
                     net.updateCenters()
                     
     # TODO: Improve model saving process - dates, parameters, performance, final image, etc

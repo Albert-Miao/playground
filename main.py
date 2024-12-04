@@ -7,13 +7,13 @@ from models import ClusterNet, NaiveNet
 from model_pipelines import trainNet, evalNet
 from visualizations import viewHiddenReps
 
-def trainNet(opt):
+def train(opt):
     torch.cuda.set_device(opt.gpu)
     net = None
     if opt.model_type == "control":
-        net = NaiveNet(opt)
+        net = NaiveNet(opt).cuda()
     else:
-        net = ClusterNet(opt)
+        net = ClusterNet(opt).cuda()
         
     trainloader, testloader = generate_data_loaders(opt)
     trainNet(trainloader, net, opt)
@@ -27,7 +27,7 @@ def main():
     opt = options.parse()
     
     if opt.train:
-        trainNet(opt)
+        train(opt)
         
     if opt.visualize_hidden_reps:
         viewHiddenReps(opt)

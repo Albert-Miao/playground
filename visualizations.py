@@ -4,7 +4,7 @@ import numpy as np
 def viewHiddenReps(opt):
     fig, axs = plt.subplots(3, 5)
     for i in range(15):
-        stats = np.load(opt.stats_fn+'.npy')
+        stats = np.load('stats/' + opt.stats_fn+'.npy')
         
         colors = stats[:, opt.hidden_rep_dim].astype('int')
         stats = stats[:, :opt.hidden_rep_dim]
