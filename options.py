@@ -25,7 +25,7 @@ class PlaygroundOptions:
         
         # TODO: Add more helpful descriptions of the various clustering algorithms
         self.parser.add_argument("--model_type",
-                                 default="control",
+                                 default="classCluster",
                                  help="""
                                          Currently testing control, simpleCluster, 
                                          explodingCluster, expandingCluster, shiftingCluster, classCluster

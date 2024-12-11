@@ -9,6 +9,7 @@ from visualizations import viewHiddenReps
 
 def train(opt):
     torch.cuda.set_device(opt.gpu)
+    print(torch.cuda.get_device_name(0))
     net = None
     if opt.model_type == "control":
         net = NaiveNet(opt).cuda()
