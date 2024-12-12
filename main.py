@@ -37,7 +37,8 @@ def main():
         viewHiddenReps(opt)
 
 
-# TODO: write code to evaluate the linear seperability of images
+# TODO: Actually evaluate linear separability of existing pipelines
+#       Maybe write huge testing code??
 # TODO: implement own self generating pipeline
 # TODO: comment thoroughly
 if __name__ == "__main__":

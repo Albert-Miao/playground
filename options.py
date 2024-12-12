@@ -9,12 +9,12 @@ class PlaygroundOptions:
         self.parser.add_argument("--print_class-sep",
                                  default=True)
         self.parser.add_argument("--visualize_hidden_reps",
-                                 default=False)
+                                 default=True)
         
         self.parser.add_argument("--gpu",
                                  default=0)
         self.parser.add_argument("--dataset",
-                                 default="MNIST",
+                                 default="CIFAR10",
                                  help="supports CIFAR10 and MNIST currently")
         self.parser.add_argument("--batch_size",
                                  default=32)
@@ -27,7 +27,7 @@ class PlaygroundOptions:
         
         # TODO: Add more helpful descriptions of the various clustering algorithms
         self.parser.add_argument("--model_type",
-                                 default="classCluster",
+                                 default="control",
                                  help="""
                                          Currently testing control, simpleCluster, 
                                          explodingCluster, expandingCluster, shiftingCluster, classCluster
