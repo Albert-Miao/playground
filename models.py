@@ -109,8 +109,8 @@ class ClusterNet(nn.Module):
         self.id_mat = None
         if self.opt.model_type == 'shiftingCluster':
             self.id_mat = torch.eye(30).cuda().to(int)
-            test = torch.tensor([((1 - (0.8) ** 2) / self.hidden_rep_dim) ** (1/2), 0.8]).cuda
-            id_mat = test[id_mat]
+            test = torch.tensor([((1 - (0.8) ** 2) / self.hidden_rep_dim) ** (1/2), 0.8]).cuda()
+            self.id_mat = test[self.id_mat]
         
         self.cl_alpha = opt.cl_alpha
         self.cl_beta = opt.cl_beta
@@ -210,8 +210,12 @@ class ClusterNet(nn.Module):
     
     
     def classExplodeClusterLoss(self, hidden_reps, labels):
-        x_repeat = hidden_reps.expand(hidden_reps.size()[1], hidden_reps.size()[0], 30).transpose(0,1)
-        centers_repeat = self.centers.expand(hidden_reps.size()[0], hidden_reps.size()[1], 30)
+        if self.centers is None:
+            return 0
+        
+        # 10 here is the number of classes
+        x_repeat = hidden_reps.expand(10, hidden_reps.size()[0], 30).transpose(0,1)
+        centers_repeat = self.centers.expand(hidden_reps.size()[0], 10, 30)
         
         raw_dists = torch.norm(x_repeat - centers_repeat, dim=2)
         dists = math.e ** ((raw_dists / 4) ** 2 * -1)
@@ -234,20 +238,20 @@ class ClusterNet(nn.Module):
         
         num_inps = self.batch_size * self.super_batch_size
         to_cluster = self.stats[:num_inps, :self.hidden_rep_dim].numpy()
-        kmeans = MiniBatchKMeans(n_clusters=self.num_clusters, random_state=0, batch_size=256, max_iter = 4, n_init='auto').fit(to_cluster)
+        self.kmeans = MiniBatchKMeans(n_clusters=self.num_clusters, random_state=0, batch_size=1600, max_iter = 4, n_init='auto').fit(to_cluster)
         if self.opt.model_type == "classCluster":
-            self.centers = torch.zeros(10, 30).cuda()
+            self.centers = torch.zeros(10, self.hidden_rep_dim).cuda()
             for j in range(10):
                     self.centers[j] = torch.mean(self.stats[:num_inps][self.stats[:num_inps, self.hidden_rep_dim] == j][:, :self.hidden_rep_dim], axis=0).cuda()
                     
         if self.opt.model_type == "simpleCluster" or self.opt.model_type == "explodingCluster":
-            self.centers = torch.from_numpy(kmeans.cluster_centers_).cuda()
+            self.centers = torch.from_numpy(self.kmeans.cluster_centers_).cuda()
             
         if self.opt.model_type == "expandingCluster":
-            self.centers = F.normalize(torch.from_numpy(kmeans.cluster_centers_).cuda())
+            self.centers = F.normalize(torch.from_numpy(self.kmeans.cluster_centers_).cuda())
             
         if self.opt.model_type == "shiftingCluster":
-            C = cdist(kmeans.cluster_centers_, self.id_mat.cpu())
+            C = cdist(self.kmeans.cluster_centers_, self.id_mat.cpu())
             _, self.assignment = linear_sum_assignment(C)
 
 class FeatureNet(nn.Module):

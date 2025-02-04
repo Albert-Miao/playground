@@ -5,6 +5,8 @@ class PlaygroundOptions:
         self.parser = argparse.ArgumentParser(description='options')
         
         self.parser.add_argument("--train",
+                                 default=False)
+        self.parser.add_argument("--print_class-sep",
                                  default=True)
         self.parser.add_argument("--visualize_hidden_reps",
                                  default=False)

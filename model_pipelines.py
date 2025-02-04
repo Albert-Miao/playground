@@ -24,7 +24,7 @@ def trainNet(trainloader, testloader, net, opt):
             outputs, cluster_loss, hidden_reps = net(inputs)
             loss = net.criterion(outputs, labels)
             
-            if opt.model_type == 'explodingCluster':
+            if opt.model_type == 'classCluster':
                 cluster_loss = net.classExplodeClusterLoss(hidden_reps, labels)
             
             running_loss += loss.item()
