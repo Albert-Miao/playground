@@ -39,7 +39,7 @@ def generate_data_loaders(opt):
                                         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
         
         trainset = torchvision.datasets.CIFAR10(root='./data', train=True,
-                                              download=True, transform=transform)
+                                              download=True, transform=transform_train)
         trainloader = torch.utils.data.DataLoader(trainset, batch_size=opt.batch_size,
                                                   shuffle=True, num_workers=2)
         

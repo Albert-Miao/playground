@@ -4,7 +4,7 @@ def trainNet(trainloader, testloader, net, opt):
     train_accs = []
     test_accs = []
     
-    upstage_track, neuron_track, resample_track = stage_planner(1, 6, 4, 2, 12, 6)
+    upstage_track, neuron_track, resample_track = stage_planner(12, 6, 4, 2, 12, 6)
     
     for epoch in range(opt.num_epochs):
         hidden_reps = None

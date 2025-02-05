@@ -5,9 +5,9 @@ class PlaygroundOptions:
         self.parser = argparse.ArgumentParser(description='options')
         
         self.parser.add_argument("--train",
-                                 default=False)
-        self.parser.add_argument("--print_class-sep",
                                  default=True)
+        self.parser.add_argument("--print_class-sep",
+                                 default=False)
         self.parser.add_argument("--visualize_hidden_reps",
                                  default=False)
         
@@ -40,7 +40,7 @@ class PlaygroundOptions:
                                  default=1, #10
                                  help='How much to value clustering over control loss')
         self.parser.add_argument("--cl_beta",
-                                 default=0.05, #0.001
+                                 default=0.02, #0.001
                                  help='How much to value cluster over explosion (explodingCluster)')
         self.parser.add_argument("--initial_cl_rate",
                                  default=0,
