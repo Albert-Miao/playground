@@ -3,7 +3,7 @@ import numpy as np
 
 from options import PlaygroundOptions
 from datasets import generate_data_loaders
-from models import ClusterNet, NaiveNet
+from models import ClusterNet, NaiveNet, FeatureNet
 from model_pipelines import trainNet, evalNet
 from visualizations import viewHiddenReps, classSeparabilityEval
 
@@ -13,14 +13,16 @@ def train(opt):
     net = None
     if opt.model_type == "control":
         net = NaiveNet(opt).cuda()
+    elif opt.model_type == "feature":
+        net = FeatureNet(opt).cuda()
     else:
         net = ClusterNet(opt).cuda()
         
     trainloader, testloader = generate_data_loaders(opt)
-    trainNet(trainloader, net, opt)
+    trainNet(trainloader, testloader, net, opt)
     evalNet(trainloader, testloader, net, opt)
     
-    np.save('stats/' + opt.stats_fn + '.npy', net.stats.numpy())
+    # np.save('stats/' + opt.stats_fn + '.npy', net.stats.numpy())
     
 
 def main():

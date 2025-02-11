@@ -5,9 +5,9 @@ class PlaygroundOptions:
         self.parser = argparse.ArgumentParser(description='options')
         
         self.parser.add_argument("--train",
-                                 default=False)
-        self.parser.add_argument("--print_class-sep",
                                  default=True)
+        self.parser.add_argument("--print_class-sep",
+                                 default=False)
         self.parser.add_argument("--visualize_hidden_reps",
                                  default=True)
         
@@ -23,24 +23,24 @@ class PlaygroundOptions:
         self.parser.add_argument("--momentum",
                                  default=0.9)
         self.parser.add_argument("--num_epochs",
-                                 default=3)
+                                 default=156) #3
         
         # TODO: Add more helpful descriptions of the various clustering algorithms
         self.parser.add_argument("--model_type",
-                                 default="control",
+                                 default="feature",
                                  help="""
                                          Currently testing control, simpleCluster, 
-                                         explodingCluster, expandingCluster, shiftingCluster, classCluster
+                                         explodingCluster, expandingCluster, shiftingCluster, classCluster, feature
                                       """)
         self.parser.add_argument("--batch_norm",
-                                 default=True)
+                                 default=False)
         self.parser.add_argument("--hidden_rep_dim",
-                                 default=30)
+                                 default=50)
         self.parser.add_argument("--cl_alpha",
-                                 default=10,
+                                 default=1, #10
                                  help='How much to value clustering over control loss')
         self.parser.add_argument("--cl_beta",
-                                 default=0.001,
+                                 default=0.02, #0.001
                                  help='How much to value cluster over explosion (explodingCluster)')
         self.parser.add_argument("--initial_cl_rate",
                                  default=0,
@@ -52,7 +52,7 @@ class PlaygroundOptions:
                                  default=250,
                                  help="Number of batches until centers are recalculated")
         self.parser.add_argument("--num_clusters",
-                                 default=30,
+                                 default=80,
                                  help='Number of clusters for kmeans clustering methods')
         
         self.parser.add_argument("--stats_fn",
