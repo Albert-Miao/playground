@@ -9,7 +9,7 @@ class PlaygroundOptions:
         self.parser.add_argument("--print_class-sep",
                                  default=False)
         self.parser.add_argument("--visualize_hidden_reps",
-                                 default=True)
+                                 default=False)
         
         self.parser.add_argument("--gpu",
                                  default=0)
@@ -23,11 +23,11 @@ class PlaygroundOptions:
         self.parser.add_argument("--momentum",
                                  default=0.9)
         self.parser.add_argument("--num_epochs",
-                                 default=156) #3
+                                 default=48) #3
         
         # TODO: Add more helpful descriptions of the various clustering algorithms
         self.parser.add_argument("--model_type",
-                                 default="feature",
+                                 default="control",
                                  help="""
                                          Currently testing control, simpleCluster, 
                                          explodingCluster, expandingCluster, shiftingCluster, classCluster, feature
