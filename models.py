@@ -17,7 +17,7 @@ class NaiveNet(nn.Module):
         super().__init__()
         
         self.opt = opt
-        self.stats = torch.zeros([10000, opt.hidden_rep_dim + 1])
+        self.stats = torch.zeros([50000, opt.hidden_rep_dim + 1])
         self.stat_index = 0
         
         self.hidden_rep_dim = opt.hidden_rep_dim
@@ -266,6 +266,9 @@ class FeatureNet(nn.Module):
         self.super_batch_size = opt.super_batch_size
         self.cl_alpha = opt.cl_alpha
         self.cl_beta = opt.cl_beta
+        
+        self.stats = torch.zeros([50000, self.sae_dim + 1])
+        self.stat_index = 0
 
         self.stage = 0
         self.tracking_neurons = False
@@ -460,10 +463,12 @@ class FeatureNet(nn.Module):
         # x = self.ln1(x)
         
         if self.stage % 3 != 0:
-            input_x = x
             _x = x - self.sae2.bias
+            input_x = _x
             f = F.relu(self.sae1(_x))
             _x = self.sae2(f)
+
+            self.stats[self.stat_index:self.stat_index+x.size()[0], :self.sae_dim] = f.detach().clone().cpu()
 
             if self.stage % 3 == 1:
                 feature_loss_arr = self.cl_alpha * torch.linalg.vector_norm(x - _x, dim=1) + self.cl_beta * torch.linalg.vector_norm(f, ord=1, dim=1)
