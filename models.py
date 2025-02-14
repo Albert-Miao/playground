@@ -557,8 +557,8 @@ class FeatureNet(nn.Module):
             with torch.no_grad():
                 print(dead_inds)
                 input_probs = self.feature_loss_record ** 2
-                # new_vecs = F.normalize(self.input_record[torch.multinomial(input_probs, dead_inds.size(0))])
-                new_vecs = F.normalize(self.residual_record[torch.multinomial(input_probs, dead_inds.size(0))])
+                new_vecs = F.normalize(self.input_record[torch.multinomial(input_probs, dead_inds.size(0))])
+                # new_vecs = F.normalize(self.residual_record[torch.multinomial(input_probs, dead_inds.size(0))])
                 new_norm = torch.mean(torch.norm(self.sae1.weight[alive_inds],dim=1)) * 0.2
                 
                 self.sae1.weight[dead_inds] = new_vecs * new_norm
