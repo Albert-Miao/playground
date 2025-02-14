@@ -72,7 +72,7 @@ class PlaygroundOptions:
                                  help='Filepath to save stats')
         
         self.parser.add_argument("--debug_load_pth",
-                                 default=True)
+                                 default=False)
         
         
         
