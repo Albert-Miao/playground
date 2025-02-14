@@ -13,8 +13,12 @@ def train(opt):
     net = None
     if opt.model_type == "control":
         net = NaiveNet(opt).cuda()
+        if opt.debug_load_pth == True:
+            net.load_state_dict(torch.load("control_long.pth", weights_only=True))
     elif opt.model_type == "feature":
         net = FeatureNet(opt).cuda()
+        if opt.debug_load_pth == True:
+            net.load_state_dict(torch.load("sae_test.pth", weights_only=True))
     else:
         net = ClusterNet(opt).cuda()
         
