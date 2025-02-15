@@ -36,7 +36,7 @@ def trainNet(trainloader, testloader, net, opt):
             
             running_loss += loss.item()
             
-            if opt.model_type == "feature" and net.stage == 1:
+            if opt.model_type == "feature" and net.stage % 3 == 1:
                 running_cl += cluster_loss[0]
                 running_l1 += cluster_loss[1]
                 loss += cluster_loss[0]
