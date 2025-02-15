@@ -561,6 +561,10 @@ class FeatureNet(nn.Module):
         dead_inds = (neuron_record == 0).nonzero()[:, 0]
         alive_inds = (neuron_record != 0).nonzero()[:, 0]
         
+        # Grab only a few dead_inds
+        print(dead_inds)
+        dead_inds = dead_inds[torch.randint(0, dead_inds.size(0), (int(dead_inds.size(0)/4)))]
+        
         if dead_inds.size(0) != 0:
             with torch.no_grad():
                 print(dead_inds)
