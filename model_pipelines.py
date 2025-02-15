@@ -4,7 +4,7 @@ def trainNet(trainloader, testloader, net, opt):
     train_accs = []
     test_accs = []
     
-    upstage_track, neuron_track, resample_track = stage_planner(12, 6, 4, 2, 12, 6)
+    upstage_track, neuron_track, resample_track = stage_planner(12, 6, 10, 2, 12, 6)
     if opt.debug_load_pth == True:
         upstage_track, neuron_track, resample_track = stage_planner(0, 6, 1, 1, 3, 6)
     
