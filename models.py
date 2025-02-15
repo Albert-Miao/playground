@@ -471,8 +471,15 @@ class FeatureNet(nn.Module):
             self.stats[self.stat_index:self.stat_index+x.size()[0], :self.sae_dim] = f.detach().clone().cpu()
 
             if self.stage % 3 == 1:
-                feature_loss_arr = self.cl_alpha * torch.linalg.vector_norm(x - _x, dim=1) + self.cl_beta * torch.linalg.vector_norm(f, ord=1, dim=1)
-                feature_loss = torch.sum(feature_loss_arr)
+                recon_loss_arr = self.cl_alpha * torch.linalg.vector_norm(x - _x, dim=1)
+                recon_loss = torch.sum(recon_loss_arr)
+                
+                l1_loss = torch.sum(self.cl_beta * torch.linalg.vector_norm(f, ord=1, dim=1)) 
+                
+                # feature_loss_arr = self.cl_alpha * torch.linalg.vector_norm(x - _x, dim=1) + self.cl_beta * torch.linalg.vector_norm(f, ord=1, dim=1)
+                # feature_loss = torch.sum(feature_loss_arr)
+                
+                feature_loss = (recon_loss, l1_loss)
                 
                 true_x = x
             else:
@@ -541,7 +548,8 @@ class FeatureNet(nn.Module):
         
         if self.tracking_neurons and self.training:
             self.neuron_record = torch.cat((self.neuron_record, f), dim=0)
-            self.feature_loss_record = torch.cat((self.feature_loss_record, feature_loss_arr), dim=0)
+            # self.feature_loss_record = torch.cat((self.feature_loss_record, feature_loss_arr), dim=0)
+            self.feature_loss_record = torch.cat((self.feature_loss_record, recon_loss_arr), dim=0)
             self.input_record = torch.cat((self.input_record, input_x), dim=0)
             self.residual_record = torch.cat((self.residual_record, true_x - _x), dim=0)
         
@@ -579,6 +587,7 @@ class FeatureNet(nn.Module):
         self.neuron_record = torch.empty(0, self.sae_dim).cuda()
         self.feature_loss_record = torch.empty(0).cuda()
         self.input_record = torch.empty(0, 20).cuda()
+        self.residual_record = torch.empty(0, 20).cuda()
 
 # stage0                       stage1        stage2        stage0        stage1        stage2        stage0
 # ['53%', '60%', '65%', '69%', '68%', '68%', '70%', '71%', '74%', '74%', '75%', '75%', '77%', '79%', '79%', '80%']

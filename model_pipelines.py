@@ -4,7 +4,7 @@ def trainNet(trainloader, testloader, net, opt):
     train_accs = []
     test_accs = []
     
-    upstage_track, neuron_track, resample_track = stage_planner(12, 6, 10, 2, 12, 6)
+    upstage_track, neuron_track, resample_track = stage_planner(1, 6, 10, 2, 12, 6)
     if opt.debug_load_pth == True:
         upstage_track, neuron_track, resample_track = stage_planner(0, 6, 1, 1, 3, 6)
     
@@ -13,6 +13,8 @@ def trainNet(trainloader, testloader, net, opt):
         cluster_loss = 0
         running_loss = 0.0
         running_cl = 0.0
+        if opt.model_type == "feature":
+            running_l1 = 0.0
         net.stat_index = 0
         
         for i, data in enumerate(trainloader, 0):
@@ -33,11 +35,14 @@ def trainNet(trainloader, testloader, net, opt):
                 cluster_loss = net.classExplodeClusterLoss(hidden_reps, labels)
             
             running_loss += loss.item()
-            running_cl += cluster_loss
-            loss += cluster_loss
+            
             
             if opt.model_type == "feature" and net.stage == 1:
-                loss = cluster_loss
+                running_cl += cluster_loss[0]
+                running_l1 += cluster_loss[1]
+            else:
+                running_cl += cluster_loss
+                loss += cluster_loss
             
             loss.backward()
             net.optimizer.step()
@@ -45,11 +50,18 @@ def trainNet(trainloader, testloader, net, opt):
             net.stat_index += opt.batch_size
             
             if i % opt.super_batch_size == opt.super_batch_size - 1:
-                print(f'[{epoch + 1}, {i + 1:5d}] loss: {running_loss / opt.super_batch_size:.3f} ' + 
-                      f'closs: {running_cl / opt.super_batch_size:.3f}')
                 
+                if opt.model_type == "feature":
+                    print(f'[{epoch + 1}, {i + 1:5d}] loss: {running_loss / opt.super_batch_size:.3f} ' + 
+                      f'reconstruction loss: {running_cl / opt.super_batch_size:.3f} ' + 
+                      f'l1 loss: {running_l1 / opt.super_batch_size:.3f}')
+                else:
+                    print(f'[{epoch + 1}, {i + 1:5d}] loss: {running_loss / opt.super_batch_size:.3f} ' + 
+                        f'closs: {running_cl / opt.super_batch_size:.3f}')
+                    
                 running_loss = 0.0
                 running_cl = 0.0
+                running_l1 = 0.0
                 
                 if opt.model_type != "control" and opt.model_type != "feature":
                     net.stat_index = 0
