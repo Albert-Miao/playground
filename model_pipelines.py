@@ -40,6 +40,8 @@ def trainNet(trainloader, testloader, net, opt):
             if opt.model_type == "feature" and net.stage == 1:
                 running_cl += cluster_loss[0]
                 running_l1 += cluster_loss[1]
+                loss += cluster_loss[0]
+                loss += cluster_loss[1]
             else:
                 running_cl += cluster_loss
                 loss += cluster_loss
