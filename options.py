@@ -12,16 +12,20 @@ class PlaygroundOptions:
                                  default=False)
         
         self.parser.add_argument("--gpu",
-                                 default=0)
+                                 default=0,
+                                 type=int)
         self.parser.add_argument("--dataset",
                                  default="CIFAR10",
                                  help="supports CIFAR10 and MNIST currently")
         self.parser.add_argument("--batch_size",
-                                 default=32)
+                                 default=32,
+                                 type=int)
         self.parser.add_argument("--lr",
-                                 default=0.004)
+                                 default=0.004,
+                                 type=float)
         self.parser.add_argument("--momentum",
-                                 default=0.9)
+                                 default=0.9,
+                                 type=float)
         self.parser.add_argument("--num_epochs",
                                  default=48) #3
         
@@ -35,29 +39,39 @@ class PlaygroundOptions:
         self.parser.add_argument("--batch_norm",
                                  default=False)
         self.parser.add_argument("--hidden_rep_dim",
-                                 default=50)
+                                 default=50,
+                                 type=int)
         self.parser.add_argument("--cl_alpha",
-                                 default=1, #10
+                                 default=1,
+                                 type=int, #10
                                  help='How much to value clustering over control loss')
         self.parser.add_argument("--cl_beta",
-                                 default=0.02, #0.001
+                                 default=0.04,
+                                 type=float,#0.001
                                  help='How much to value cluster over explosion (explodingCluster)')
         self.parser.add_argument("--initial_cl_rate",
                                  default=0,
+                                 type=float,
                                  help='Initial proportion of cl to l')
         self.parser.add_argument("--cl_rate_speed",
                                  default=1/6,
+                                 type=float,
                                  help='Amount to increase cl_rate by per mega_batch')
         self.parser.add_argument("--super_batch_size",
                                  default=250,
+                                 type=int,
                                  help="Number of batches until centers are recalculated")
         self.parser.add_argument("--num_clusters",
                                  default=80,
+                                 type=int,
                                  help='Number of clusters for kmeans clustering methods')
         
         self.parser.add_argument("--stats_fn",
                                  default='0',
                                  help='Filepath to save stats')
+        
+        self.parser.add_argument("--debug_load_pth",
+                                 default=False)
         
         
         

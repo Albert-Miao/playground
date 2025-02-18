@@ -17,7 +17,7 @@ class NaiveNet(nn.Module):
         super().__init__()
         
         self.opt = opt
-        self.stats = torch.zeros([10000, opt.hidden_rep_dim + 1])
+        self.stats = torch.zeros([50000, opt.hidden_rep_dim + 1])
         self.stat_index = 0
         
         self.hidden_rep_dim = opt.hidden_rep_dim
@@ -266,6 +266,9 @@ class FeatureNet(nn.Module):
         self.super_batch_size = opt.super_batch_size
         self.cl_alpha = opt.cl_alpha
         self.cl_beta = opt.cl_beta
+        
+        self.stats = torch.zeros([50000, self.sae_dim + 1])
+        self.stat_index = 0
 
         self.stage = 0
         self.tracking_neurons = False
@@ -460,14 +463,23 @@ class FeatureNet(nn.Module):
         # x = self.ln1(x)
         
         if self.stage % 3 != 0:
-            input_x = x
             _x = x - self.sae2.bias
+            input_x = _x
             f = F.relu(self.sae1(_x))
             _x = self.sae2(f)
-            
+
+            self.stats[self.stat_index:self.stat_index+x.size()[0], :self.sae_dim] = f.detach().clone().cpu()
+
             if self.stage % 3 == 1:
-                feature_loss_arr = self.cl_alpha * torch.linalg.vector_norm(x - _x, dim=1) + self.cl_beta * torch.linalg.vector_norm(f, ord=1, dim=1)
-                feature_loss = torch.sum(feature_loss_arr)
+                recon_loss_arr = self.cl_alpha * torch.linalg.vector_norm(x - _x, dim=1)
+                recon_loss = torch.sum(recon_loss_arr)
+                
+                l1_loss = torch.sum(self.cl_beta * torch.linalg.vector_norm(f, ord=1, dim=1)) 
+                
+                # feature_loss_arr = self.cl_alpha * torch.linalg.vector_norm(x - _x, dim=1) + self.cl_beta * torch.linalg.vector_norm(f, ord=1, dim=1)
+                # feature_loss = torch.sum(feature_loss_arr)
+                
+                feature_loss = (recon_loss, l1_loss)
                 
                 true_x = x
             else:
@@ -536,7 +548,8 @@ class FeatureNet(nn.Module):
         
         if self.tracking_neurons and self.training:
             self.neuron_record = torch.cat((self.neuron_record, f), dim=0)
-            self.feature_loss_record = torch.cat((self.feature_loss_record, feature_loss_arr), dim=0)
+            # self.feature_loss_record = torch.cat((self.feature_loss_record, feature_loss_arr), dim=0)
+            self.feature_loss_record = torch.cat((self.feature_loss_record, recon_loss_arr), dim=0)
             self.input_record = torch.cat((self.input_record, input_x), dim=0)
             self.residual_record = torch.cat((self.residual_record, true_x - _x), dim=0)
         
@@ -548,12 +561,16 @@ class FeatureNet(nn.Module):
         dead_inds = (neuron_record == 0).nonzero()[:, 0]
         alive_inds = (neuron_record != 0).nonzero()[:, 0]
         
+        # Grab only a few dead_inds
+        print(dead_inds)
+        dead_inds = dead_inds[torch.randint(0, dead_inds.size(0), (int(dead_inds.size(0)/4)))]
+        
         if dead_inds.size(0) != 0:
             with torch.no_grad():
                 print(dead_inds)
                 input_probs = self.feature_loss_record ** 2
-                # new_vecs = F.normalize(self.input_record[torch.multinomial(input_probs, dead_inds.size(0))])
-                new_vecs = F.normalize(self.residual_record[torch.multinomial(input_probs, dead_inds.size(0))])
+                new_vecs = F.normalize(self.input_record[torch.multinomial(input_probs, dead_inds.size(0))])
+                # new_vecs = F.normalize(self.residual_record[torch.multinomial(input_probs, dead_inds.size(0))])
                 new_norm = torch.mean(torch.norm(self.sae1.weight[alive_inds],dim=1)) * 0.2
                 
                 self.sae1.weight[dead_inds] = new_vecs * new_norm
@@ -574,6 +591,7 @@ class FeatureNet(nn.Module):
         self.neuron_record = torch.empty(0, self.sae_dim).cuda()
         self.feature_loss_record = torch.empty(0).cuda()
         self.input_record = torch.empty(0, 20).cuda()
+        self.residual_record = torch.empty(0, 20).cuda()
 
 # TODO: Try feature, 156 epochs, 0.02 cl_beta, no affine in dataset transformations. Got 71% with it one time, interesting
 # stage0                       stage1        stage2        stage0        stage1        stage2        stage0
@@ -584,7 +602,10 @@ class FeatureNet(nn.Module):
 # ['50%', '61%', '67%', '69%', '72%', '72%', '74%', '74%', '77%', '77%', '77%', '78%', '78%', '79%', '80%', '79%']
 # ['49%', '58%', '63%', '63%', '66%', '65%', '66%', '67%', '67%', '67%', '67%', '67%', '67%', '67%', '67%', '67%']
 
-0.04
+# ['61%',        '70%',        '73%',        '75%',        '80%',        '80%',        '82%',        '83%']
+# ['58%',        '64%',        '66%',        '66%',        '68%',        '68%',        '68%',        '69%'
+
+#0.04
 # stage0                       stage1                                    stage2        stage0        stage1                                    stage2        stage0        stage1                                    stage2        stage0       
 # ['52%', '61%', '65%', '67%', '67%', '67%', '67%', '68%', '68%', '67%', '70%', '71%', '74%', '74%', '74%', '75%', '74%', '74%', '74%', '74%', '77%', '77%', '81%', '80%', '80%', '80%', '81%', '80%', '81%', '80%', '81%', '81%', '82%', '82%']
 # ['50%', '59%', '62%', '63%', '63%', '63%', '63%', '63%', '63%', '63%', '65%', '65%', '65%', '66%', '66%', '66%', '66%', '66%', '66%', '66%', '67%', '67%', '68%', '68%', '68%', '68%', '68%', '68%', '68%', '68%', '68%', '68%', '69%', '68%']
@@ -596,6 +617,12 @@ class FeatureNet(nn.Module):
 # stage0         stage1                                    stage2 stage0 stage1                                    stage2 stage0 stage1                                    stage2 stage0
 # ['61%', '70%', '67%', '68%', '68%', '68%', '68%', '67%', '73%', '75%', '75%', '76%', '76%', '76%', '76%', '76%', '80%', '80%', '81%', '82%', '81%', '81%', '81%', '81%', '82%', '83%']
 # ['58%', '64%', '62%', '62%', '62%', '62%', '62%', '62%', '66%', '66%', '67%', '67%', '67%', '67%', '67%', '67%', '68%', '68%', '68%', '68%', '68%', '68%', '68%', '68%', '68%', '69%']
+
+# ['54%', '63%', '62%', '62%', '62%', '63%', '63%', '62%', '65%', '68%', '66%', '67%', '66%', '65%', '65%', '67%', '70%', '70%', '70%', '71%', '71%', '70%', '71%', '71%', '71%', '72%']
+# ['54%', '62%', '63%', '63%', '63%', '63%', '63%', '63%', '64%', '66%', '65%', '65%', '65%', '65%', '65%', '65%', '68%', '68%', '68%', '68%', '68%', '68%', '68%', '68%', '69%', '69%']
+
+# ['53%', '57%', '60%', '63%', '64%', '65%', '65%', '65%']
+# ['55%', '60%', '61%', '64%', '65%', '66%', '66%', '67%']
 
 # Old Projection testing code
 class ProjNet(nn.Module):

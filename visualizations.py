@@ -54,12 +54,12 @@ def classSeparabilityEval(opt):
     for i in range(10):
         groups.append(stats[stats[:, -1] == i][:, :30])
         
-    classSeps = np.ones((10, 10)) * math.sqrt(2)
+    classSeps = np.ones((10, 10))
     for i in range(10):
         for j in range(i, 10):
             if j == i:
                 continue
-            classSeps[i, j] = linearSepMetric(groups[i], groups[j])
+            classSeps[i, j] = linearSepMetric(groups[i], groups[j]) / math.sqrt(2)
             classSeps[j, i] = classSeps[i, j]
             
     avgs = np.mean(classSeps, axis=0)
@@ -68,7 +68,7 @@ def classSeparabilityEval(opt):
     for i in range(10):
         output = str(i) + '  |'
         for j in range(10):
-            if classSeps[i, j] == math.sqrt(2):
+            if classSeps[i, j] == 1:
                 output += ' N/A |'
             else:
                 output += str(classSeps[i, j])[1:6] + '|'
@@ -81,6 +81,9 @@ def classSeparabilityEval(opt):
     
     print('Entire Average: ' + str(np.mean(avgs)))
     
-    seaborn.heatmap(classSeps)
+    if opt.dataset == 'MNIST':
+        seaborn.heatmap(classSeps, vmin=0.9, vmax=1)
+    elif opt.dataset == 'CIFAR10':
+        seaborn.heatmap(classSeps, vmin=0.55, vmax=1)
     plt.show()
     

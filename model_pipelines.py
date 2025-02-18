@@ -4,19 +4,26 @@ def trainNet(trainloader, testloader, net, opt):
     train_accs = []
     test_accs = []
     
-    upstage_track, neuron_track, resample_track = stage_planner(12, 6, 4, 2, 12, 6)
+    upstage_track, neuron_track, resample_track = stage_planner(12, 6, 10, 2, 12, 6)
+    if opt.debug_load_pth == True:
+        upstage_track, neuron_track, resample_track = stage_planner(0, 6, 1, 1, 3, 6)
     
     for epoch in range(opt.num_epochs):
         hidden_reps = None
         cluster_loss = 0
         running_loss = 0.0
         running_cl = 0.0
+        if opt.model_type == "feature":
+            running_l1 = 0.0
         net.stat_index = 0
         
         for i, data in enumerate(trainloader, 0):
             inputs, labels = data[0].cuda(0), data[1].cuda()
             if opt.model_type != "control" and opt.model_type != "feature":
                 net.stats[net.stat_index:net.stat_index+opt.batch_size, opt.hidden_rep_dim] = labels
+            if opt.model_type == "feature" and net.stage % 3 == 2:
+                # Num clusters here is sae dim, I know, I know, I promise if this project gets approval I'll rewrite.
+                net.stats[net.stat_index:net.stat_index+opt.batch_size, opt.num_clusters] = labels
 
             # zero the parameter gradients
             net.optimizer.zero_grad()
@@ -28,11 +35,15 @@ def trainNet(trainloader, testloader, net, opt):
                 cluster_loss = net.classExplodeClusterLoss(hidden_reps, labels)
             
             running_loss += loss.item()
-            running_cl += cluster_loss
-            loss += cluster_loss
             
-            if opt.model_type == "feature" and net.stage == 1:
-                loss = cluster_loss
+            if opt.model_type == "feature" and net.stage % 3 == 1:
+                running_cl += cluster_loss[0]
+                running_l1 += cluster_loss[1]
+                loss += cluster_loss[0]
+                loss += cluster_loss[1]
+            else:
+                running_cl += cluster_loss
+                loss += cluster_loss
             
             loss.backward()
             net.optimizer.step()
@@ -40,14 +51,21 @@ def trainNet(trainloader, testloader, net, opt):
             net.stat_index += opt.batch_size
             
             if i % opt.super_batch_size == opt.super_batch_size - 1:
-                print(f'[{epoch + 1}, {i + 1:5d}] loss: {running_loss / opt.super_batch_size:.3f} ' + 
-                      f'closs: {running_cl / opt.super_batch_size:.3f}')
                 
+                if opt.model_type == "feature":
+                    print(f'[{epoch + 1}, {i + 1:5d}] loss: {running_loss / opt.super_batch_size:.3f} ' + 
+                      f'reconstruction loss: {running_cl / opt.super_batch_size:.3f} ' + 
+                      f'l1 loss: {running_l1 / opt.super_batch_size:.3f}')
+                else:
+                    print(f'[{epoch + 1}, {i + 1:5d}] loss: {running_loss / opt.super_batch_size:.3f} ' + 
+                        f'closs: {running_cl / opt.super_batch_size:.3f}')
+                    
                 running_loss = 0.0
                 running_cl = 0.0
-                net.stat_index = 0
+                running_l1 = 0.0
                 
                 if opt.model_type != "control" and opt.model_type != "feature":
+                    net.stat_index = 0
                     net.updateCenters()
         
         if epoch % 6 == 5:
@@ -61,23 +79,11 @@ def trainNet(trainloader, testloader, net, opt):
             if opt.model_type == "feature":
                 net.stage = stage
         
-        # [12, 48, 54, 60, 96, 102, 108, 144, 150, 156]
-        # [23, 35, 71, 83, 119, 131]
-        # [24, 36, 72, 84, 120, 132]
-        
-        # if opt.model_type == "feature" and epoch in [2, 4, 20]:
-        # if opt.model_type == "feature" and epoch in [11, 23, 29]:
-        # if opt.model_type == "feature" and epoch in [11, 29, 35, 41, 59, 65, 71, 89, 95]:
+
         if opt.model_type == "feature" and epoch in upstage_track:
             net.upstage()
-        # if opt.model_type == "feature" and epoch in []:
-        # if opt.model_type == "feature" and epoch in [13, 16, 19]:
-        # if opt.model_type == "feature" and epoch in [15, 22, 45, 52, 75, 82]:
         if opt.model_type == "feature" and epoch in neuron_track:
             net.track_neurons()
-        # elif opt.model_type == "feature" and epoch in []:
-        # elif opt.model_type == "feature" and epoch in [14, 17, 20]:
-        # if opt.model_type == "feature" and epoch in [16, 23, 46, 53, 76, 83]:
         if opt.model_type == "feature" and epoch in resample_track:
             net.resample_dead_neurons()
                     
@@ -91,7 +97,7 @@ def trainNet(trainloader, testloader, net, opt):
     return net
 
 def stage_planner(initial_e, e_per_0, num_0, num_resamples, e_per_resample, e_per_2):
-    curr_epoch = initial_e
+    curr_epoch = initial_e - 1
     upstage = []
     neuron_track = []
     resample = []
