@@ -481,7 +481,7 @@ class FeatureNet(nn.Module):
                 l1_scaling = (torch.count_nonzero(f, dim=1) - 3) / 5
                 l1_scaling[l1_scaling < 0] = 0
                 l1_scaling[l1_scaling > 1.4] = 1.4
-                l1_loss = torch.sum(self.cl_beta * torch.linalg.vector_norm(f, ord=1, dim=1) * (l1_scaling ** 5))
+                l1_loss = torch.sum(self.cl_beta * torch.linalg.vector_norm(f, ord=1, dim=1) * (l1_scaling ** 7))
                 
                 # feature_loss_arr = self.cl_alpha * torch.linalg.vector_norm(x - _x, dim=1) + self.cl_beta * torch.linalg.vector_norm(f, ord=1, dim=1)
                 # feature_loss = torch.sum(feature_loss_arr)
@@ -612,7 +612,7 @@ class FeatureNet(nn.Module):
                 norm_scale *= torch.stack([self.feature_loss_record[cl==x].mean() for x in range(dead_inds.size(0))])
                 
                 
-                self.sae1.weight[dead_inds] = ideal_inps * norm_scale.unsqueeze(1).repeat(1, 20) * 0.2
+                self.sae1.weight[dead_inds] = ideal_inps * norm_scale.unsqueeze(1).repeat(1, 20)
                 self.sae1.bias[dead_inds] = torch.zeros(dead_inds.size(0)).cuda()
                 
                 self.sae2.weight[:, dead_inds] = ideal_ress.T
@@ -662,6 +662,10 @@ class FeatureNet(nn.Module):
 
 # ['53%', '57%', '60%', '63%', '64%', '65%', '65%', '65%']
 # ['55%', '60%', '61%', '64%', '65%', '66%', '66%', '67%']
+
+#  444 epochs, 0.2 clbeta, ideal residuals, 5th power l1, no affine
+# ['57%', '61%', '61%', '62%', '62%', '62%', '62%', '61%', '64%', '68%', '67%', '67%', '68%', '67%', '68%', '67%', '70%', '71%', '70%', '70%', '70%', '70%', '70%', '70%', '70%', '71%', '71%', '72%', '72%', '72%', '72%', '71%', '73%', '72%', '73%', '73%', '73%', '73%', '72%', '72%', '72%', '73%', '73%', '73%', '73%', '73%', '73%', '73%', '73%', '74%', '73%', '73%', '73%', '73%', '73%', '73%', '73%', '73%', '73%', '73%', '73%', '74%', '73%', '74%', '73%', '73%', '74%', '74%', '74%', '73%', '74%', '74%', '74%', '74%']
+# ['57%', '62%', '62%', '62%', '62%', '62%', '62%', '62%', '63%', '66%', '66%', '66%', '66%', '66%', '66%', '66%', '68%', '68%', '68%', '68%', '68%', '68%', '68%', '68%', '69%', '69%', '69%', '69%', '69%', '69%', '69%', '69%', '69%', '70%', '70%', '70%', '70%', '70%', '70%', '70%', '70%', '70%', '70%', '70%', '70%', '70%', '70%', '70%', '70%', '70%', '70%', '70%', '70%', '70%', '70%', '70%', '70%', '70%', '70%', '70%', '70%', '70%', '70%', '70%', '70%', '70%', '70%', '70%', '70%', '70%', '70%', '70%', '71%', '71%']
 
 # Old Projection testing code
 class ProjNet(nn.Module):

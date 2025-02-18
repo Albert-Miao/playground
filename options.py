@@ -27,11 +27,11 @@ class PlaygroundOptions:
                                  default=0.9,
                                  type=float)
         self.parser.add_argument("--num_epochs",
-                                 default=444) #3
+                                 default=156) #3
         
         # TODO: Add more helpful descriptions of the various clustering algorithms
         self.parser.add_argument("--model_type",
-                                 default="feature",
+                                 default="control",
                                  help="""
                                          Currently testing control, simpleCluster, 
                                          explodingCluster, expandingCluster, shiftingCluster, classCluster, feature
@@ -46,7 +46,7 @@ class PlaygroundOptions:
                                  type=int, #10
                                  help='How much to value clustering over control loss')
         self.parser.add_argument("--cl_beta",
-                                 default=0.2,
+                                 default=0.08,
                                  type=float,#0.001
                                  help='How much to value cluster over explosion (explodingCluster)')
         self.parser.add_argument("--initial_cl_rate",
