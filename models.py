@@ -561,17 +561,21 @@ class FeatureNet(nn.Module):
         dead_inds = (neuron_record == 0).nonzero()[:, 0]
         alive_inds = (neuron_record != 0).nonzero()[:, 0]
         
-        # Grab only a few dead_inds
-        print(dead_inds)
-        dead_inds = dead_inds[torch.randint(0, dead_inds.size(0), (int(dead_inds.size(0)/4)))]
+        # # Grab only a few dead_inds
+        # print(dead_inds)
+        # dead_inds = dead_inds[torch.randint(0, dead_inds.size(0), (int(dead_inds.size(0)/4),))]
         
         if dead_inds.size(0) != 0:
             with torch.no_grad():
                 print(dead_inds)
                 input_probs = self.feature_loss_record ** 2
+                
+                # Generate new vecs from input vectors, scaled by average norm of alive weights. Based off monosemanticity paper
                 new_vecs = F.normalize(self.input_record[torch.multinomial(input_probs, dead_inds.size(0))])
-                # new_vecs = F.normalize(self.residual_record[torch.multinomial(input_probs, dead_inds.size(0))])
                 new_norm = torch.mean(torch.norm(self.sae1.weight[alive_inds],dim=1)) * 0.2
+                
+                # Try to generate new vecs from 'ideal' residuals
+                # new_vecs = F.normalize(self.residual_record[torch.multinomial(input_probs, dead_inds.size(0))])
                 
                 self.sae1.weight[dead_inds] = new_vecs * new_norm
                 self.sae1.bias[dead_inds] = torch.zeros(dead_inds.size(0)).cuda()
