@@ -11,6 +11,8 @@ import torch.optim as optim
 from scipy.spatial.distance import cdist
 from scipy.optimize import linear_sum_assignment
 
+from utils import KMeans_cosine
+
 
 class NaiveNet(nn.Module):
     def __init__(self, opt):
@@ -474,7 +476,12 @@ class FeatureNet(nn.Module):
                 recon_loss_arr = self.cl_alpha * torch.linalg.vector_norm(x - _x, dim=1)
                 recon_loss = torch.sum(recon_loss_arr)
                 
-                l1_loss = torch.sum(self.cl_beta * torch.linalg.vector_norm(f, ord=1, dim=1)) 
+                # Testing different l1 scaling loss
+                # l1_loss = torch.sum(self.cl_beta * torch.linalg.vector_norm(f, ord=1, dim=1)) 
+                l1_scaling = (torch.count_nonzero(f, dim=1) - 3) / 5
+                l1_scaling[l1_scaling < 0] = 0
+                l1_scaling[l1_scaling > 1.4] = 1.4
+                l1_loss = torch.sum(self.cl_beta * torch.linalg.vector_norm(f, ord=1, dim=1) * (l1_scaling ** 5))
                 
                 # feature_loss_arr = self.cl_alpha * torch.linalg.vector_norm(x - _x, dim=1) + self.cl_beta * torch.linalg.vector_norm(f, ord=1, dim=1)
                 # feature_loss = torch.sum(feature_loss_arr)
@@ -571,16 +578,44 @@ class FeatureNet(nn.Module):
                 input_probs = self.feature_loss_record ** 2
                 
                 # Generate new vecs from input vectors, scaled by average norm of alive weights. Based off monosemanticity paper
-                new_vecs = F.normalize(self.input_record[torch.multinomial(input_probs, dead_inds.size(0))])
-                new_norm = torch.mean(torch.norm(self.sae1.weight[alive_inds],dim=1)) * 0.2
+                # new_vecs = F.normalize(self.input_record[torch.multinomial(input_probs, dead_inds.size(0))])
+                # new_norm = torch.mean(torch.norm(self.sae1.weight[alive_inds],dim=1)) * 0.2
+                
+                # self.sae1.weight[dead_inds] = new_vecs * new_norm
+                # self.sae1.bias[dead_inds] = torch.zeros(dead_inds.size(0)).cuda()
+                
+                # self.sae2.weight[:, dead_inds] = new_vecs.T
+                
+                # Generate from residuals instead
+                # new_vecs = F.normalize(self.residual_record[torch.multinomial(input_probs, dead_inds.size(0))])
+                # new_norm = torch.mean(torch.norm(self.sae1.weight[alive_inds],dim=1)) * 0.2
+                
+                # self.sae1.weight[dead_inds] = new_vecs * new_norm
+                # self.sae1.bias[dead_inds] = torch.zeros(dead_inds.size(0)).cuda()
+                
+                # self.sae2.weight[:, dead_inds] = new_vecs.T
                 
                 # Try to generate new vecs from 'ideal' residuals
-                # new_vecs = F.normalize(self.residual_record[torch.multinomial(input_probs, dead_inds.size(0))])
+                cl, c = KMeans_cosine(self.residual_record, dead_inds.size(0), 1000)
+                num_per_c = torch.bincount(cl)
+                norm_scale, inds = torch.sort(num_per_c, descending=True)
+                c = c[inds]
+                cl = inds[cl]
                 
-                self.sae1.weight[dead_inds] = new_vecs * new_norm
+                ideal_ress = F.normalize(c)
+                
+                input_probs = [(self.feature_loss_record ** 2)[cl == x] for x in range(dead_inds.size(0))]
+                ideal_inps = F.normalize(torch.stack([(input_probs[x] @ self.input_record[cl == x]) / input_probs[x].sum() for x in range(dead_inds.size(0))]))
+                
+                norm_scale -= torch.min(norm_scale) - 1
+                norm_scale = norm_scale / torch.max(norm_scale)
+                norm_scale *= torch.stack([self.feature_loss_record[cl==x].mean() for x in range(dead_inds.size(0))])
+                
+                
+                self.sae1.weight[dead_inds] = ideal_inps * norm_scale.unsqueeze(1).repeat(1, 20) * 0.2
                 self.sae1.bias[dead_inds] = torch.zeros(dead_inds.size(0)).cuda()
                 
-                self.sae2.weight[:, dead_inds] = new_vecs.T
+                self.sae2.weight[:, dead_inds] = ideal_ress.T
                 
                 # opt_param_size = self.optimizer.param_groups[0]['params'][10].size()
                 

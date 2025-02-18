@@ -27,7 +27,7 @@ class PlaygroundOptions:
                                  default=0.9,
                                  type=float)
         self.parser.add_argument("--num_epochs",
-                                 default=444) #3
+                                 default=156) #3
         
         # TODO: Add more helpful descriptions of the various clustering algorithms
         self.parser.add_argument("--model_type",
