@@ -575,6 +575,7 @@ class FeatureNet(nn.Module):
         self.feature_loss_record = torch.empty(0).cuda()
         self.input_record = torch.empty(0, 20).cuda()
 
+# TODO: Try feature, 156 epochs, 0.02 cl_beta, no affine in dataset transformations. Got 71% with it one time, interesting
 # stage0                       stage1        stage2        stage0        stage1        stage2        stage0
 # ['53%', '60%', '65%', '69%', '68%', '68%', '70%', '71%', '74%', '74%', '75%', '75%', '77%', '79%', '79%', '80%']
 # ['52%', '57%', '61%', '63%', '63%', '63%', '63%', '65%', '66%', '66%', '66%', '66%', '68%', '68%', '69%', '68%']
