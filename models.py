@@ -320,26 +320,30 @@ class FeatureNet(nn.Module):
             self.sae1 = nn.Linear(20, self.sae_dim)
             self.sae2 = nn.Linear(self.sae_dim, 20)
             
-            self.ln1 = nn.LayerNorm(20)
-            self.ln2 = nn.LayerNorm(20)
-            self.ln3 = nn.LayerNorm((self.sae_dim, 20))
-            self.ln4 = nn.LayerNorm(20)
-            self.ln5 = nn.LayerNorm(20)
+            # self.ln1 = nn.LayerNorm(20)
+            # self.ln2 = nn.LayerNorm(20)
+            # self.ln3 = nn.LayerNorm((self.sae_dim, 20))
+            # self.ln4 = nn.LayerNorm(20)
+            # self.ln5 = nn.LayerNorm(20)
             
-            self.q = nn.Linear(20, 20, bias=False)
-            self.k = nn.Linear(20, 20, bias=False)
-            self.v = nn.Linear(20, 20, bias=False)
+            # self.q = nn.Linear(20, 20, bias=False)
+            # self.k = nn.Linear(20, 20, bias=False)
+            # self.v = nn.Linear(20, 20, bias=False)
             
-            self.fc4 = nn.Linear(20, 40)
-            self.fc5 = nn.Linear(40, 20, bias=False)
+            # self.fc4 = nn.Linear(20, 40)
+            # self.fc5 = nn.Linear(40, 20, bias=False)
             
-            self.w0 = nn.Linear(20, 20)
+            # self.w0 = nn.Linear(20, 20)
             
             self.fc6 = nn.Linear(20, 10)
             
             self.bn = nn.BatchNorm1d(self.hidden_rep_dim)
                 
-        self.optimizer = optim.SGD(self.parameters(), lr=opt.lr, momentum=opt.momentum)
+        non_sae_params = [p for name, p in self.named_parameters() if 'sae' not in name]
+        sae_params = [p for name, p in self.named_parameters() if 'sae' in name]
+        self.non_sae_optimizer = optim.SGD({'params': non_sae_params}, lr=opt.lr, momentum=opt.momentum)
+        self.sae_optimizer = optim.SGD({'params': sae_params}, lr=opt.sae_lr, momentum=opt.sae_momentum)
+        self.optimizer = self.non_sae_optimizer
         
     def upstage(self):
         # Stage 0: No SAE
@@ -366,11 +370,11 @@ class FeatureNet(nn.Module):
             self.fc1.requires_grad_(False)
             self.fc2.requires_grad_(False)
             self.fc3.requires_grad_(False)
-            self.ln1.requires_grad_(False)
+            # self.ln1.requires_grad_(False)
             self.fc6.requires_grad_(False)
             
             # self.optimizer = optim.Adam(self.parameters(), lr=self.opt.lr / (self.stage ** (1/2)), momentum=self.opt.momentum)
-            self.optimizer = optim.Adam(self.parameters(), lr=self.opt.lr / (self.stage ** (1/2)))
+            self.optimizer = self.sae_optimizer
         
         elif self.stage % 3 == 2:
             self.conv1.requires_grad_(True)
@@ -381,14 +385,14 @@ class FeatureNet(nn.Module):
             self.fc1.requires_grad_(True)
             self.fc2.requires_grad_(True)
             self.fc3.requires_grad_(True)
-            self.ln1.requires_grad_(True)
+            # self.ln1.requires_grad_(True)
             self.fc6.requires_grad_(True)
                 
             
             self.sae1.requires_grad_(False)
             self.sae2.requires_grad_(False)
             
-            self.optimizer = optim.SGD(self.parameters(), lr=self.opt.lr / (self.stage - 1), momentum=self.opt.momentum)
+            self.optimizer = self.non_sae_optimizer
             
         elif self.stage % 3 == 0:
             self.sae1.requires_grad_(True)
