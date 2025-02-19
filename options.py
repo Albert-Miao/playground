@@ -27,7 +27,8 @@ class PlaygroundOptions:
                                  default=0.9,
                                  type=float)
         self.parser.add_argument("--num_epochs",
-                                 default=444) #3
+                                 default=444,
+                                 type=int) #3
         
         # TODO: Add more helpful descriptions of the various clustering algorithms
         self.parser.add_argument("--model_type",
@@ -62,7 +63,7 @@ class PlaygroundOptions:
                                  type=int,
                                  help="Number of batches until centers are recalculated")
         self.parser.add_argument("--num_clusters",
-                                 default=80,
+                                 default=320,
                                  type=int,
                                  help='Number of clusters for kmeans clustering methods')
         
