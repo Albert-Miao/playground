@@ -341,8 +341,8 @@ class FeatureNet(nn.Module):
                 
         non_sae_params = [p for name, p in self.named_parameters() if 'sae' not in name]
         sae_params = [p for name, p in self.named_parameters() if 'sae' in name]
-        self.non_sae_optimizer = optim.SGD({'params': non_sae_params}, lr=opt.lr, momentum=opt.momentum)
-        self.sae_optimizer = optim.SGD({'params': sae_params}, lr=opt.sae_lr, momentum=opt.sae_momentum)
+        self.non_sae_optimizer = optim.SGD([{'params': non_sae_params}], lr=opt.lr, momentum=opt.momentum)
+        self.sae_optimizer = optim.SGD([{'params': sae_params}], lr=opt.sae_lr, momentum=opt.sae_momentum)
         self.optimizer = self.non_sae_optimizer
         
     def upstage(self):
