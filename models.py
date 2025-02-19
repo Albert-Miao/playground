@@ -485,7 +485,7 @@ class FeatureNet(nn.Module):
                 l1_scaling = (torch.count_nonzero(f, dim=1) - 3) / 5
                 l1_scaling[l1_scaling < 0] = 0
                 l1_scaling[l1_scaling > 1.4] = 1.4
-                l1_loss = torch.sum(self.cl_beta * torch.linalg.vector_norm(f, ord=1, dim=1) * (l1_scaling ** 7))
+                l1_loss = torch.sum(self.cl_beta * torch.linalg.vector_norm(f, ord=1, dim=1) * (l1_scaling ** 4))
                 
                 # feature_loss_arr = self.cl_alpha * torch.linalg.vector_norm(x - _x, dim=1) + self.cl_beta * torch.linalg.vector_norm(f, ord=1, dim=1)
                 # feature_loss = torch.sum(feature_loss_arr)
